@@ -38,7 +38,7 @@ export default async function handler(req, res) {
         const mimeType = req.headers['content-type'];
 
         // We get the Gemini model
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
 
         // The prompt we will give to the AI along with the image
         const prompt = "Analyze this image and list only the food ingredients you see. Exclude any non-food items like bowls, plates, or utensils. Please provide the list as a simple comma-separated string. For example: 'apples, milk, cheese, bread'.";

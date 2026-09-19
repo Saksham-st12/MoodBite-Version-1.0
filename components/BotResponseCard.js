@@ -9,7 +9,7 @@ const ImagePlaceholder = () => (
 );
 
 export default function BotResponseCard({ response }) {
-    const { predictedMood, suggestedFood, reason, confidenceScore, source } = response;
+    const { predictedMood, suggestedFood, reason, confidenceScore, source, dietaryType } = response;
     const [isExpanded, setIsExpanded] = useState(false);
     const [imageUrl, setImageUrl] = useState(null);
     const [imageLoading, setImageLoading] = useState(true);
@@ -30,7 +30,7 @@ export default function BotResponseCard({ response }) {
             setImageLoading(false);
         }
         return () => controls.stop();
-    }, [suggestedFood]);
+    }, [suggestedFood, count, targetScore]);
 
     return (
         <div className="bg-gray-700 rounded-lg p-4 w-full max-w-lg space-y-4">
@@ -47,7 +47,25 @@ export default function BotResponseCard({ response }) {
             </div>
             <div className="bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="text-center sm:text-left">
-                    <p className="text-xs text-gray-400">Suggestion</p>
+                    <div className="flex items-center gap-2 mb-1 justify-center sm:justify-start">
+                        <p className="text-xs text-gray-400">Suggestion</p>
+                        {dietaryType && (
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                dietaryType.toLowerCase() === 'veg' 
+                                    ? 'border-green-500/50 bg-green-950/40 text-green-300' 
+                                    : 'border-red-500/50 bg-red-950/40 text-red-300'
+                            }`}>
+                                <span className={`w-3 h-3 border flex items-center justify-center rounded-[2px] p-[1px] ${
+                                    dietaryType.toLowerCase() === 'veg' ? 'border-green-500' : 'border-red-500'
+                                }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                        dietaryType.toLowerCase() === 'veg' ? 'bg-green-500' : 'bg-red-500'
+                                    }`} />
+                                </span>
+                                {dietaryType.toLowerCase() === 'veg' ? 'Veg' : 'Non-Veg'}
+                            </div>
+                        )}
+                    </div>
                     <p className="text-2xl font-bold">{suggestedFood}</p>
                 </div>
                 <div className="text-center bg-gray-900/50 p-2 rounded-lg">
