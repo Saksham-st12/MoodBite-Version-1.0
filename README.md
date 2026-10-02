@@ -3,11 +3,13 @@
 > **Emotion-Aware Indian Culinary Recommendation Engine & Interactive Cooking Assistant**  
 > Final Year Engineering Capstone Project by **Saksham Tiwari**
 
-[![Next.js](https://img.shields.io/badge/Next.js-15.4.4-black?logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5.27-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.1.0-blue?logo=react)](https://react.dev/)
 [![Gemini](https://img.shields.io/badge/Google-Gemini%203.5%20Flash-4285F4?logo=google)](https://aistudio.google.com/)
 [![Hugging Face](https://img.shields.io/badge/RoBERTa-GoEmotions-yellow?logo=huggingface)](https://huggingface.co/SamLowe/roberta-base-go_emotions)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?logo=vercel)](https://mood-bite-version-1-0.vercel.app/)
+
+🌐 **Live Production Deployment**: [**https://mood-bite-version-1-0.vercel.app/**](https://mood-bite-version-1-0.vercel.app/)
 
 ---
 
