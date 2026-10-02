@@ -1,39 +1,177 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# MoodBite AI (Version 1.0)
 
-## Getting Started
+> **Emotion-Aware Indian Culinary Recommendation Engine & Interactive Cooking Assistant**  
+> Final Year Engineering Capstone Project by **Saksham Tiwari**
 
-First, run the development server:
+[![Next.js](https://img.shields.io/badge/Next.js-15.4.4-black?logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19.1.0-blue?logo=react)](https://react.dev/)
+[![Gemini](https://img.shields.io/badge/Google-Gemini%203.5%20Flash-4285F4?logo=google)](https://aistudio.google.com/)
+[![Hugging Face](https://img.shields.io/badge/RoBERTa-GoEmotions-yellow?logo=huggingface)](https://huggingface.co/SamLowe/roberta-base-go_emotions)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## 📖 Project Overview
+
+**MoodBite AI** bridges computational affective computing with nutritional guidance. The application interprets user emotions from natural text or voice expressions, combines them with available kitchen ingredients (entered manually or scanned via computer vision), and generates **4 to 5 culturally authentic Indian meal recommendations** adhering strictly to **FSSAI dietary standards** (100% Vegetarian vs. Non-Vegetarian).
+
+Once a user selects a recipe, MoodBite transitions into an interactive sous-chef—providing precise measurements, step-by-step cooking procedures, professional culinary tips, mood-therapy scientific rationale, and hands-free voice narration.
+
+---
+
+## 🏛️ System Architecture
+
+```
+                                  [ User Interface ]
+                       (Voice / Text / Camera / Pantry Selector)
+                                          │
+                                          ▼
+                               [ Input Validation Layer ]
+                             (lib/validation.js with Zod)
+                                          │
+                                          ▼
+                               [ Rate Limiting Layer ]
+                       (lib/rateLimit.js - Sliding Window)
+                                          │
+                   ┌──────────────────────┴──────────────────────┐
+                   ▼                                             ▼
+       [ Emotion Inference Head ]                    [ Multimodal Vision ]
+        RoBERTa-base (GoEmotions)                     Gemini 3.5 Flash
+         (Hugging Face API Router)                  (Ingredient Extraction)
+                   │                                             │
+                   └──────────────────────┬──────────────────────┘
+                                          │
+                                          ▼
+                             [ Primary Reasoning Engine ]
+                             Google Gemini 3.5 Flash LLM
+                                (Timeout: 10s via Abort)
+                                          │
+                               (Fallback on failure)
+                                          ▼
+                            [ Secondary Fallback Engine ]
+                               Anthropic Claude 3 Haiku
+                                (OpenRouter API Provider)
+                                          │
+                                          ▼
+                        [ Deterministic Post-Processing ]
+                       (lib/dietaryCheck.js - Non-LLM)
+                       ├── Strict Meat-Keyword Elimination (Veg)
+                       ├── Ingredient Occurrence Verification
+                       └── Zod Schema Conformance Check
+                                          │
+                                          ▼
+                             [ Visual & Audio Enrichment ]
+                             ├── Pexels API (Dish Photography)
+                             └── Web Speech API (Voice Narration)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+## 🛡️ Hardening, Reliability & Security (WP1 & WP2)
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+### 1. Zero Client-Side Secret Leakage (WP1.1)
+All API keys are strictly loaded and executed within serverless routes (`pages/api/*`). No `NEXT_PUBLIC_` prefixes are assigned to sensitive AI or vision keys.
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+### 2. Request Input Validation (WP1.2)
+All API endpoints validate incoming parameters via [Zod](https://zod.dev):
+- **`/api/suggestFood`**: Text length bounded (1–500 chars), ingredient array capped at 25 items (max 50 chars each), strict enum for dietary preferences (`'veg' | 'non-veg' | 'all'`).
+- **`/api/identifyIngredients`**: Content-Type verification (`image/jpeg`, `image/png`, `image/webp`), streaming byte-counter capping uploads to 5 MB (`413 Payload Too Large`).
+- **`/api/getRecipeDetails`**: Dish name bounded (2–100 chars), sanitization of pantry items.
+- **`/api/generateFoodImage`**: Query length limits and URI decoding guards.
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Zod Output Validation & Schema Retries (WP1.3)
+Raw outputs from LLMs are extracted from Markdown fences, parsed as JSON, and verified against strict Zod schemas (`suggestFoodOutputSchema`, `recipeDetailsOutputSchema`). If an LLM returns malformed JSON, MoodBite triggers a secondary model retry before falling back to a structured, guaranteed safe fallback.
 
-## Learn More
+### 4. Deterministic Model Hierarchy & Timeouts (WP1.4 & WP2.2)
+Rather than executing redundant parallel model calls and picking the highest self-reported number, MoodBite implements a cost-efficient **hierarchical fallback order**:
+1. **Primary**: Google Gemini 3.5 Flash (10s timeout via `AbortController`)
+2. **Secondary**: Google Gemini 3.5 Flash Lite
+3. **Tertiary Fallback**: Anthropic Claude 3 Haiku via OpenRouter
+4. **Guaranteed Local Fallback**: Deterministic emergency comfort meal structure
 
-To learn more about Next.js, take a look at the following resources:
+### 5. In-Memory Sliding-Window Rate Limiting (WP1.5)
+Protects against API quota exhaustion with per-IP rate limiting (`lib/rateLimit.js`):
+- AI recommendation and vision endpoints: 20–25 requests/min.
+- Image generation endpoints: 40 requests/min.
+- Standard HTTP `429 Too Many Requests` responses with `Retry-After` headers.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+### 6. Honest AI Match Rating (WP2.1)
+The legacy `confidenceScore` parameter has been refactored to `llmSelfRating` and is explicitly labeled on the UI as an **AI Match Rating (Self-Reported Indicator)**, eliminating deceptive statistical "confidence" claims.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 7. Non-LLM Deterministic Quality Signals (WP2.3)
+- **Dietary Compliance Filter**: Uses word-boundary regex patterns against an extensive non-vegetarian keyword glossary (`chicken`, `mutton`, `fish`, `egg`, `keema`, etc.) to guarantee that vegetarian choices never contain meat products.
+- **Ingredient Match Ratio**: Deterministically tallies how many user-provided pantry items appear in the suggested recipes.
 
-## Deploy on Vercel
+---
 
-Deployed Link ---> https://moodbite-ai.vercel.app/
+## 🔑 Environment Variables Reference
 
+Create a `.env.local` file in the project root based on `.env.example`:
+
+| Variable | Required | Description | Provider Link |
+| :--- | :---: | :--- | :--- |
+| `GEMINI_API_KEY` | **Yes** | Primary LLM & Multimodal Vision | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| `HUGGING_FACE_API_TOKEN` | **Yes** | RoBERTa GoEmotions Classifier | [Hugging Face Tokens](https://huggingface.co/settings/tokens) |
+| `OPENROUTER_API_KEY` | Optional | Claude 3 Haiku Fallback Provider | [OpenRouter Keys](https://openrouter.ai/keys) |
+| `PEXELS_API_KEY` | **Yes** | High-resolution Food Photography | [Pexels Developer API](https://www.pexels.com/api/) |
+| `RATE_LIMIT_WINDOW_MS` | Optional | Rate limit sliding window (default: 60000ms) | Internal config |
+| `RATE_LIMIT_MAX_REQUESTS` | Optional | Max requests per IP window (default: 20) | Internal config |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js `18.x` or later (tested on Node `v24.x` / `v20.x`)
+- npm or yarn
+
+### Installation
+```bash
+# 1. Clone repository
+git clone https://github.com/Saksham-st12/MoodBite-Version-1.0.git
+cd MoodBite-Version-1.0
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.example .env.local
+# Edit .env.local and add your API keys
+
+# 4. Start local development server
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your web browser.
+
+### Production Build
+```bash
+npm run build
+npm run start
+```
+
+---
+
+## ⚠️ Known Limitations & Evaluation Notes
+
+1. **GoEmotions 28-Label Closed Taxonomy**:
+   The RoBERTa model (`SamLowe/roberta-base-go_emotions`) is trained on Google's GoEmotions dataset. In GoEmotions, physiological fatigue (*"tired"*, *"exhausted"*, *"drained"*) is categorized as a physical state rather than an affective emotion. Sentences like *"I feel tired and want food"* trigger activations on the `desire` label. MoodBite mitigates this by passing the raw prompt text to Gemini to capture low-energy contexts.
+2. **In-Memory Rate Limiting**:
+   The sliding-window rate limiter runs in Node.js process memory. For multi-instance, horizontally-scaled cloud deployments (e.g. AWS ECS or multi-region Vercel), an external Redis store (e.g. Upstash) is recommended.
+3. **Session Persistence**:
+   Version 1.0 operates in client-side state. Persistent user accounts and historical tracking are slated for the upcoming work packages.
+
+---
+
+## 🗺️ Engineering Roadmap (Work Packages)
+
+- [x] **WP1: Audit & v1.0 Hardening** (Schema validation, input sanitization, rate limiting, timeouts, .env.example, README)
+- [x] **WP2: Fix Confidence-Score Handling** (Rename to `llmSelfRating`, deterministic hierarchy, keyword dietary filter)
+- [ ] **WP3: Authentication** (Auth.js / Supabase Auth with Google & Email/Password, retaining guest mode)
+- [ ] **WP4: Relational Database** (PostgreSQL / Supabase with `users`, `user_preferences`, `recommendation_history`, `recipe_selections`, `feedback`)
+- [ ] **WP5: User Dashboard & Feedback UI** (Profile preferences, history viewing, recommendation rating)
+- [ ] **WP6: Automated Evaluation & CI** (Dietary compliance rate, ingredient match rate, GitHub Actions)
+
+---
+
+## 📄 License
+This project is open-source under the [MIT License](LICENSE).

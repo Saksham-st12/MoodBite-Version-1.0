@@ -1,24 +1,48 @@
-// components/RecipeChoicesCard.js
+// components/RecipeChoicesCard.js (Updated for WP2.1 & WP2.3)
 import React from 'react';
 import { motion } from 'framer-motion';
 
 export default function RecipeChoicesCard({ response, onSelectRecipe }) {
-    const { predictedMood, choices = [], summary, dietaryType } = response;
+    const { 
+        predictedMood, 
+        choices = [], 
+        summary, 
+        dietaryType, 
+        llmSelfRating, 
+        confidenceScore, 
+        source 
+    } = response;
+
+    const rating = llmSelfRating || confidenceScore || 85;
 
     return (
         <div className="bg-gray-800/90 border border-gray-700/80 rounded-2xl p-4 sm:p-5 w-full max-w-2xl space-y-4 shadow-xl backdrop-blur-md">
-            {/* Header: Detected Mood & Summary */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-700/60">
+            {/* Header: Detected Mood, Summary & Honest AI Match Rating (WP2.1) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-700/60">
                 <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Detected Mood</span>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
                             {predictedMood}
                         </span>
+                        {source && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-gray-900/60 text-gray-400 border border-gray-700/60">
+                                {source}
+                            </span>
+                        )}
                     </div>
                     <p className="text-sm text-gray-200 mt-1 font-medium">
                         {summary || `Here are ${choices.length || 4} great recipes tailored to your ingredients and mood:`}
                     </p>
+                </div>
+
+                {/* WP2.1: Honest AI Match Rating */}
+                <div className="flex-shrink-0 flex items-center gap-2 bg-gray-900/70 border border-gray-700/70 rounded-xl px-3 py-1.5 self-start sm:self-center">
+                    <div className="text-right">
+                        <p className="text-[10px] text-gray-400 font-medium">AI Match Rating</p>
+                        <p className="text-[9px] text-gray-500">Self-reported indicator</p>
+                    </div>
+                    <span className="text-lg font-mono font-bold text-green-400">{rating}%</span>
                 </div>
             </div>
 
@@ -56,6 +80,13 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                                     {choice.difficulty && (
                                         <span className="text-[11px] px-2 py-0.5 rounded-md bg-purple-950/40 text-purple-300 border border-purple-800/40">
                                             {choice.difficulty}
+                                        </span>
+                                    )}
+
+                                    {/* WP2.3: Deterministic Ingredient Match Indicator */}
+                                    {typeof choice.ingredientMatchCount === 'number' && choice.ingredientMatchCount > 0 && (
+                                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
+                                            🎯 Matched {choice.ingredientMatchCount} item{choice.ingredientMatchCount > 1 ? 's' : ''}
                                         </span>
                                     )}
                                 </div>

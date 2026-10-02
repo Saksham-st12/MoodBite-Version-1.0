@@ -1,18 +1,9 @@
-// pages/api/identifyIngredients.js (FINAL - Using Google Gemini for Vision)
+// pages/api/identifyIngredients.js (Hardened with MIME validation, size limits, timeouts & rate limiting)
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ALLOWED_IMAGE_MIME_TYPES, MAX_IMAGE_SIZE_BYTES } from '../../lib/validation';
+import { applyRateLimit } from '../../lib/rateLimit';
 
-// Initialize the Google AI Client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-// This function converts the image buffer to the format Google's API needs
-function bufferToGenerativePart(buffer, mimeType) {
-    return {
-        inlineData: {
-            data: buffer.toString("base64"),
-            mimeType,
-        },
-    };
-}
+const GEMINI_VISION_TIMEOUT_MS = 12000;
 
 export const config = {
     api: {
@@ -20,46 +11,96 @@ export const config = {
     },
 };
 
+function bufferToGenerativePart(buffer, mimeType) {
+    return {
+        inlineData: {
+            data: buffer.toString('base64'),
+            mimeType,
+        },
+    };
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method Not Allowed' });
+        res.setHeader('Allow', ['POST']);
+        return res.status(405).json({ message: 'Method Not Allowed. Use POST.' });
+    }
+
+    // WP1.5: Rate Limiting
+    if (applyRateLimit(req, res, { maxRequests: 20, windowMs: 60000 })) {
+        return;
+    }
+
+    // WP1.2: Validate Content-Type
+    const contentType = (req.headers['content-type'] || '').toLowerCase().split(';')[0].trim();
+    if (!ALLOWED_IMAGE_MIME_TYPES.includes(contentType)) {
+        return res.status(415).json({
+            message: `Unsupported media type "${contentType}". Allowed image types: JPEG, PNG, WEBP, GIF.`
+        });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+        return res.status(503).json({ message: 'AI vision service unconfigured. Missing GEMINI_API_KEY.' });
     }
 
     try {
-        // We get the image data from the request
+        // WP1.2: Stream with strict size limit enforcement (max 5MB)
         const imageBuffer = await new Promise((resolve, reject) => {
             const chunks = [];
-            req.on('data', chunk => chunks.push(chunk));
+            let totalBytes = 0;
+
+            req.on('data', chunk => {
+                totalBytes += chunk.length;
+                if (totalBytes > MAX_IMAGE_SIZE_BYTES) {
+                    const error = new Error('Payload too large. Image exceeds 5MB limit.');
+                    error.code = 'LIMIT_FILE_SIZE';
+                    req.destroy();
+                    return reject(error);
+                }
+                chunks.push(chunk);
+            });
+
             req.on('end', () => resolve(Buffer.concat(chunks)));
             req.on('error', err => reject(err));
         });
 
-        // We get the content type from the request headers (e.g., 'image/jpeg')
-        const mimeType = req.headers['content-type'];
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
 
-        // We get the Gemini model
-        const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+        const prompt = "Analyze this image and list only the identifiable raw or prepared food ingredients you see. Exclude bowls, plates, packaging, and utensils. Return the ingredients as a clean, lowercase comma-separated list. Example: 'tomato, garlic, paneer, coriander'.";
+        const imagePart = bufferToGenerativePart(imageBuffer, contentType);
 
-        // The prompt we will give to the AI along with the image
-        const prompt = "Analyze this image and list only the food ingredients you see. Exclude any non-food items like bowls, plates, or utensils. Please provide the list as a simple comma-separated string. For example: 'apples, milk, cheese, bread'.";
+        // WP1.4: Timeout handling via Promise.race
+        const generatePromise = model.generateContent([prompt, imagePart]);
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                const err = new Error('Gemini Vision processing timed out.');
+                err.name = 'TimeoutError';
+                reject(err);
+            }, GEMINI_VISION_TIMEOUT_MS);
+        });
 
-        // We convert the image to the correct format
-        const imagePart = bufferToGenerativePart(imageBuffer, mimeType);
-
-        // We send the prompt and the image to the AI
-        const result = await model.generateContent([prompt, imagePart]);
+        const result = await Promise.race([generatePromise, timeoutPromise]);
         const response = await result.response;
-        const text = response.text();
+        const text = response.text() || '';
 
-        // We clean up the result from the AI and turn it into an array
-        const ingredients = text.split(',').map(item => item.trim().toLowerCase());
+        const ingredients = text
+            .split(/[\n,]+/)
+            .map(item => item.replace(/^[-*•\s]+/, '').trim().toLowerCase())
+            .filter(item => item.length > 1 && item.length <= 40);
 
-        res.status(200).json({ ingredients });
+        return res.status(200).json({ ingredients });
 
     } catch (error) {
-        console.error("----------- DETAILED ERROR -----------");
-        console.error(error);
-        console.error("--------------------------------------");
-        res.status(500).json({ message: 'Failed to identify ingredients.' });
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ message: 'Image exceeds maximum allowed size of 5MB.' });
+        }
+        if (error.name === 'TimeoutError') {
+            return res.status(504).json({ message: 'Image analysis timed out. Please try with a smaller image or enter ingredients manually.' });
+        }
+
+        console.error('Ingredient identification error:', error.message);
+        return res.status(500).json({ message: 'Failed to identify ingredients from the image. Please try again or type them manually.' });
     }
 }

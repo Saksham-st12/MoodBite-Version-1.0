@@ -1,115 +1,328 @@
-// pages/api/suggestFood.js (Using Gemini Flash)
+// pages/api/suggestFood.js
+// Hardened with Zod validation, deterministic model hierarchy, rate limiting, and dietary verification (WP1 & WP2)
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { suggestFoodInputSchema, suggestFoodOutputSchema } from '../../lib/validation';
+import { applyRateLimit } from '../../lib/rateLimit';
+import { verifyDietaryCompliance, calculateIngredientMatch } from '../../lib/dietaryCheck';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const HF_ROBERTA_URL = "https://router.huggingface.co/hf-inference/models/SamLowe/roberta-base-go_emotions";
+const AI_TIMEOUT_MS = 10000;
 
-async function getMood(userInput) {
-    const emotionResponse = await fetch(
-        "https://router.huggingface.co/hf-inference/models/SamLowe/roberta-base-go_emotions",
-        {
-            headers: { Authorization: `Bearer ${process.env.HUGGING_FACE_API_TOKEN}`, 'Content-Type': 'application/json' },
-            method: "POST",
-            body: JSON.stringify({ inputs: userInput }),
+// Safe JSON parser from LLM markdown code blocks
+function parseJsonFromMarkdown(text) {
+    if (!text || typeof text !== 'string') return null;
+    const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+    try {
+        return JSON.parse(cleaned);
+    } catch {
+        // Attempt to extract the first balanced JSON object if extra text exists
+        const start = cleaned.indexOf('{');
+        const end = cleaned.lastIndexOf('}');
+        if (start !== -1 && end > start) {
+            try {
+                return JSON.parse(cleaned.substring(start, end + 1));
+            } catch {
+                return null;
+            }
         }
-    );
-    if (!emotionResponse.ok) throw new Error("Hugging Face classifier failed.");
-    const emotions = await emotionResponse.json();
-    return emotions[0][0].label;
-}
-
-async function callGemini(prompt) {
-    const models = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash"];
-    for (const modelName of models) {
-        try {
-            const model = genAI.getGenerativeModel({ model: modelName, generationConfig: { temperature: 0.8 } });
-            const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
-            const jsonString = responseText.replace(/```json|```/g, '').trim();
-            return JSON.parse(jsonString);
-        } catch (error) {
-            console.warn(`Gemini (${modelName}) warning:`, error.message);
-        }
+        return null;
     }
-    return null;
 }
 
-async function callOpenRouter(prompt) {
+// Emotion classification via RoBERTa GoEmotions with timeout and graceful fallback
+async function getMood(userInput) {
+    const token = process.env.HUGGING_FACE_API_TOKEN?.trim();
+    if (!token) {
+        console.warn("HUGGING_FACE_API_TOKEN is missing. Defaulting mood to 'neutral'.");
+        return 'neutral';
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    try {
+        const response = await fetch(HF_ROBERTA_URL, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
+            body: JSON.stringify({ inputs: userInput }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            console.warn(`HuggingFace emotion API returned HTTP ${response.status}`);
+            return 'neutral';
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data) && Array.isArray(data[0]) && data[0][0]?.label) {
+            return data[0][0].label;
+        }
+        return 'neutral';
+    } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn('RoBERTa emotion classifier error/timeout:', err.message);
+        return 'neutral';
+    }
+}
+
+// Primary Model: Google Gemini
+async function callGeminiWithTimeout(prompt, modelName = "gemini-3.5-flash") {
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) return null;
+
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { temperature: 0.7 }
+        });
+
+        const generatePromise = model.generateContent(prompt);
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Gemini (${modelName}) timed out`)), AI_TIMEOUT_MS);
+        });
+
+        const result = await Promise.race([generatePromise, timeoutPromise]);
+        const text = result.response.text();
+        return parseJsonFromMarkdown(text);
+    } catch (err) {
+        console.warn(`Gemini (${modelName}) failed:`, err.message);
+        return null;
+    }
+}
+
+// Fallback Model: Anthropic Claude 3 Haiku via OpenRouter
+async function callClaudeWithTimeout(prompt) {
+    const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+    if (!apiKey) return null;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
     try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
-            body: JSON.stringify({ model: "anthropic/claude-3-haiku", messages: [{ "role": "user", "content": prompt }] })
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: "anthropic/claude-3-haiku",
+                messages: [{ role: "user", content: prompt }]
+            }),
+            signal: controller.signal
         });
-        if (!response.ok) { const errorBody = await response.json(); throw new Error(`OpenRouter API failed: ${JSON.stringify(errorBody)}`); }
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) return null;
         const result = await response.json();
-        return JSON.parse(result.choices[0].message.content);
-    } catch (error) {
-        console.error("OpenRouter API failed:", error.message);
+        const content = result.choices?.[0]?.message?.content;
+        return parseJsonFromMarkdown(content);
+    } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn("Claude fallback via OpenRouter failed:", err.message);
         return null;
     }
 }
 
 export default async function handler(req, res) {
-    const { text: userInput, ingredients, dietaryPreference } = req.body;
-    if (!userInput) return res.status(400).json({ message: 'User input is required.' });
+    if (req.method !== 'POST') {
+        res.setHeader('Allow', ['POST']);
+        return res.status(405).json({ message: 'Method Not Allowed. Use POST.' });
+    }
+
+    // WP1.5: Rate Limiting
+    if (applyRateLimit(req, res, { maxRequests: 25, windowMs: 60000 })) {
+        return;
+    }
+
+    // WP1.2: Validate Request Inputs
+    const validationResult = suggestFoodInputSchema.safeParse(req.body);
+    if (!validationResult.success) {
+        return res.status(400).json({
+            message: 'Invalid request input.',
+            errors: validationResult.error.errors.map(e => e.message)
+        });
+    }
+
+    const { text: userInput, ingredients, dietaryPreference } = validationResult.data;
 
     try {
+        // Step 1: Detect Emotion
         const predictedMood = await getMood(userInput);
-        const varietyInstruction = `CRITICAL INSTRUCTION: You MUST suggest a different and creative dish each time. Do not repeat previous suggestions. For positive moods like 'joy' or 'excitement', prioritize suggesting a savory celebratory meal.`;
-        
+
+        // Step 2: Build Strict Prompt Instructions
         let dietaryInstruction = "";
         if (dietaryPreference === 'veg') {
-            dietaryInstruction = `CRITICAL DIETARY INSTRUCTION: The user strictly requires a VEGETARIAN dish. You MUST ONLY suggest a 100% vegetarian Indian meal (plant-based, paneer, lentils, dairy, or vegetables). Absolutely NO meat, chicken, mutton, fish, seafood, or eggs. Set the "dietaryType" key to "veg".`;
+            dietaryInstruction = `CRITICAL DIETARY INSTRUCTION: The user strictly requires a VEGETARIAN dish. You MUST ONLY suggest 100% vegetarian Indian meals (plant-based, paneer, lentils, dairy, vegetables). Absolutely NO meat, chicken, mutton, fish, seafood, or eggs. Set "dietaryType" to "veg".`;
         } else if (dietaryPreference === 'non-veg') {
-            dietaryInstruction = `CRITICAL DIETARY INSTRUCTION: The user strictly requires a NON-VEGETARIAN dish. You MUST suggest an authentic Indian non-vegetarian meal (chicken, mutton, fish, prawn/seafood, or egg-based dish). Absolutely DO NOT suggest a pure vegetarian dish. Set the "dietaryType" key to "non-veg".`;
+            dietaryInstruction = `CRITICAL DIETARY INSTRUCTION: The user strictly requires a NON-VEGETARIAN dish. You MUST suggest authentic Indian non-vegetarian meals (chicken, mutton, fish, prawn, or egg-based dish). Absolutely DO NOT suggest a pure vegetarian dish. Set "dietaryType" to "non-veg".`;
         } else {
-            dietaryInstruction = `DIETARY INSTRUCTION: The user has no strict preference (can be vegetarian or non-vegetarian). Set the "dietaryType" key accurately to either "veg" or "non-veg" depending on what you suggest.`;
+            dietaryInstruction = `DIETARY INSTRUCTION: The user has no strict preference (can be vegetarian or non-vegetarian). Set "dietaryType" accurately to either "veg" or "non-veg".`;
         }
 
-        const keysInstruction = `Respond ONLY with a JSON object with these exact keys: "predictedMood", "dietaryType", "summary", "suggestedFood", "reason", "confidenceScore", "choices". "predictedMood" should be "${predictedMood}". "dietaryType" must be either "veg" or "non-veg". "confidenceScore" must be an INTEGER between 80 and 95. "choices" must be an ARRAY of 4 to 5 distinct dish objects. Each choice object MUST have: "id" (string "1" to "5"), "name" (exact dish name), "description" (1-2 sentence appetizing description), "cookTime" (e.g. "15 mins", "25 mins"), "difficulty" ("Easy" | "Medium" | "Quick"), "dietaryType" ("veg" | "non-veg"), "matchReason" (how it uses their ingredients or helps their mood). Set "suggestedFood" to choices[0].name and "reason" to choices[0].description.`;
+        // WP2.1: Renamed from confidenceScore to llmSelfRating in system prompt
+        const schemaInstruction = `Respond ONLY with a valid JSON object matching these exact keys:
+{
+  "predictedMood": "${predictedMood}",
+  "dietaryType": "${dietaryPreference === 'non-veg' ? 'non-veg' : 'veg'}",
+  "summary": "1-sentence summary of recommendations",
+  "suggestedFood": "Exact name of top choice",
+  "reason": "1-2 sentence appetizing reason",
+  "llmSelfRating": 88,
+  "choices": [
+    {
+      "id": "1",
+      "name": "Exact Dish Name",
+      "description": "Appetizing description",
+      "cookTime": "20 mins",
+      "difficulty": "Easy",
+      "dietaryType": "${dietaryPreference === 'non-veg' ? 'non-veg' : 'veg'}",
+      "matchReason": "How it utilizes their mood and pantry ingredients"
+    }
+  ]
+}
+Note: "llmSelfRating" must be an integer between 80 and 95 (representing your self-assessed relevance score). "choices" must contain 4 to 5 distinct Indian dishes.`;
 
         let prompt;
         if (ingredients && ingredients.length > 0) {
-            prompt = `The user is feeling: "${predictedMood}". The user has these available ingredients: [${ingredients.join(', ')}]. User input: "${userInput}". Based on this mood and these available ingredients, suggest 4 to 5 distinct, creative Indian meals they can cook. ${dietaryInstruction} ${varietyInstruction} ${keysInstruction}`;
+            prompt = `The user is feeling: "${predictedMood}". The user has these available ingredients: [${ingredients.join(', ')}]. User input: "${userInput}". Based on this mood and these available ingredients, suggest 4 to 5 distinct, creative Indian meals they can cook. ${dietaryInstruction} ${schemaInstruction}`;
         } else {
-            prompt = `The user is feeling: "${predictedMood}". User input: "${userInput}". If the user mentioned any ingredients, prioritize them. Suggest 4 to 5 distinct, creative and appropriate Indian meals for this mood. ${dietaryInstruction} ${varietyInstruction} ${keysInstruction}`;
+            prompt = `The user is feeling: "${predictedMood}". User input: "${userInput}". Suggest 4 to 5 distinct, creative and appropriate Indian meals for this mood. ${dietaryInstruction} ${schemaInstruction}`;
         }
 
-        console.log("Starting 2-way AI competition between Gemini and OpenRouter...");
-        const [geminiResult, openRouterResult] = await Promise.allSettled([
-            callGemini(prompt),
-            callOpenRouter(prompt)
-        ]);
+        // WP2.2: Documented Deterministic Model Hierarchy
+        // Rule: 1. Try Primary (Gemini 3.5 Flash) -> 2. Try Secondary (Gemini Flash Lite) -> 3. Fallback (Claude Haiku)
+        let rawCandidate = null;
+        let selectedSource = 'Gemini 3.5 Flash';
 
-        const successfulResponses = [];
-        if (geminiResult.status === 'fulfilled' && geminiResult.value) {
-            successfulResponses.push({ ...geminiResult.value, source: 'Gemini' });
-        }
-        if (openRouterResult.status === 'fulfilled' && openRouterResult.value) {
-            successfulResponses.push({ ...openRouterResult.value, source: 'Claude 3 Haiku' });
-        }
+        // 1. Primary: Gemini 3.5 Flash
+        rawCandidate = await callGeminiWithTimeout(prompt, 'gemini-3.5-flash');
 
-        if (successfulResponses.length === 0) {
-            throw new Error("All AI models failed to provide a valid response.");
+        // 2. Retry with Gemini 3.5 Flash Lite if primary failed
+        if (!rawCandidate) {
+            console.log("Gemini primary failed. Retrying with gemini-3.5-flash-lite...");
+            rawCandidate = await callGeminiWithTimeout(prompt, 'gemini-3.5-flash-lite');
+            selectedSource = 'Gemini 3.5 Flash Lite';
         }
 
-        successfulResponses.sort((a, b) => b.confidenceScore - a.confidenceScore);
-        const winner = successfulResponses[0];
-        
-        console.log(`Competition finished. Winner is ${winner.source} with score ${winner.confidenceScore}`);
-        
-        const finalDietaryType = winner.dietaryType || (dietaryPreference === 'non-veg' ? 'non-veg' : 'veg');
-        const finalResponse = { ...winner, predictedMood: predictedMood, dietaryType: finalDietaryType };
-        res.status(200).json(finalResponse);
+        // 3. Fallback: Claude 3 Haiku via OpenRouter
+        if (!rawCandidate) {
+            console.log("Gemini family failed. Falling back to Claude 3 Haiku...");
+            rawCandidate = await callClaudeWithTimeout(prompt);
+            selectedSource = 'Claude 3 Haiku';
+        }
 
-    } catch (e) {
-        console.error("----------- DETAILED ERROR -----------", e);
-        res.status(500).json({
+        // WP1.3: Validate LLM output against Zod schema
+        let validatedOutput = null;
+        if (rawCandidate) {
+            const parseResult = suggestFoodOutputSchema.safeParse(rawCandidate);
+            if (parseResult.success) {
+                validatedOutput = parseResult.data;
+            } else {
+                console.warn("LLM returned malformed schema:", parseResult.error.format());
+            }
+        }
+
+        // WP2.3: Deterministic checks (Dietary Compliance & Ingredient Occurrence)
+        if (validatedOutput) {
+            // Verify dietary compliance for each choice
+            if (dietaryPreference !== 'all') {
+                validatedOutput.choices = validatedOutput.choices.filter(choice => {
+                    const check = verifyDietaryCompliance(choice, dietaryPreference);
+                    if (!check.isCompliant) {
+                        console.warn(`Filtering out non-compliant choice: "${choice.name}":`, check.reason);
+                        return false;
+                    }
+                    return true;
+                });
+            }
+
+            // Calculate deterministic ingredient matches
+            if (ingredients && ingredients.length > 0) {
+                validatedOutput.choices = validatedOutput.choices.map(choice => {
+                    const matchStats = calculateIngredientMatch(choice, ingredients);
+                    return {
+                        ...choice,
+                        ingredientMatchCount: matchStats.matchCount,
+                        ingredientMatchRatio: Number(matchStats.matchRatio.toFixed(2))
+                    };
+                });
+            }
+
+            // If all choices were filtered out due to dietary violations, invalidate to trigger safe fallback
+            if (validatedOutput.choices.length === 0) {
+                console.warn("All choices failed dietary compliance check. Reverting to safe fallback.");
+                validatedOutput = null;
+            }
+        }
+
+        // If models failed or output failed validation, use graceful structured fallback
+        if (!validatedOutput) {
+            console.log("Using guaranteed structured fallback response.");
+            const fallbackDish = dietaryPreference === 'non-veg'
+                ? { name: "Comforting Murgh Khichdi", desc: "A nourishing, fragrant chicken and rice broth with gentle spices.", time: "25 mins" }
+                : { name: "Moong Dal Comfort Khichdi", desc: "A soothing, protein-rich lentil and rice pot with golden cumin ghee.", time: "20 mins" };
+
+            validatedOutput = {
+                predictedMood: predictedMood || "tired",
+                dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
+                summary: `Soothing comfort meal designed to restore your energy and mood.`,
+                suggestedFood: fallbackDish.name,
+                reason: fallbackDish.desc,
+                llmSelfRating: 85,
+                confidenceScore: 85,
+                choices: [
+                    {
+                        id: "1",
+                        name: fallbackDish.name,
+                        description: fallbackDish.desc,
+                        cookTime: fallbackDish.time,
+                        difficulty: "Easy",
+                        dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
+                        matchReason: "Gentle comfort food formulated to soothe your mood."
+                    },
+                    {
+                        id: "2",
+                        name: dietaryPreference === 'non-veg' ? "Quick Egg Bhurji Roll" : "Paneer Capsicum Tawa Stir-Fry",
+                        description: "Quick high-protein meal ready in minutes.",
+                        cookTime: "15 mins",
+                        difficulty: "Quick",
+                        dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
+                        matchReason: "Requires minimal effort while providing deep satiety."
+                    }
+                ]
+            };
+            selectedSource = 'Deterministic Safe Fallback';
+        }
+
+        // Ensure top suggestion matches top choice
+        if (validatedOutput.choices.length > 0) {
+            validatedOutput.suggestedFood = validatedOutput.choices[0].name;
+            validatedOutput.reason = validatedOutput.choices[0].description;
+        }
+
+        return res.status(200).json({
+            ...validatedOutput,
+            source: selectedSource
+        });
+
+    } catch (error) {
+        console.error("Critical error in /api/suggestFood:", error);
+        return res.status(500).json({
             predictedMood: "Error",
             suggestedFood: "Request Failed",
             dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
-            reason: "Sorry, the AI assistants failed to respond. Please try again in a moment.",
-            confidenceScore: 0
+            reason: "The AI recommendation service is temporarily unavailable. Please try again in a few moments.",
+            llmSelfRating: 0,
+            confidenceScore: 0,
+            choices: []
         });
     }
 }

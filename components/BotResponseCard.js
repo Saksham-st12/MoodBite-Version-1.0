@@ -1,4 +1,4 @@
-// components/BotResponseCard.js
+// components/BotResponseCard.js (Updated for WP2.1 - Honest AI Match Rating)
 import { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 
@@ -9,17 +9,28 @@ const ImagePlaceholder = () => (
 );
 
 export default function BotResponseCard({ response }) {
-    const { predictedMood, suggestedFood, reason, confidenceScore, source, dietaryType } = response;
+    const { 
+        predictedMood, 
+        suggestedFood, 
+        reason, 
+        llmSelfRating, 
+        confidenceScore, 
+        source, 
+        dietaryType 
+    } = response;
+
     const [isExpanded, setIsExpanded] = useState(false);
     const [imageUrl, setImageUrl] = useState(null);
     const [imageLoading, setImageLoading] = useState(true);
 
+    const ratingValue = llmSelfRating || confidenceScore || 85;
+    const targetScore = ratingValue < 2 ? ratingValue * 100 : ratingValue;
+
     const count = useMotionValue(0);
     const rounded = useTransform(count, latest => Math.round(latest));
-    const targetScore = confidenceScore < 2 ? confidenceScore * 100 : confidenceScore;
 
     useEffect(() => {
-        const controls = animate(count, targetScore, { duration: 2, ease: "easeOut" });
+        const controls = animate(count, targetScore, { duration: 1.5, ease: "easeOut" });
         if (suggestedFood && !suggestedFood.toLowerCase().includes("failed") && !suggestedFood.toLowerCase().includes("error")) {
             setImageLoading(true);
             fetch(`/api/generateFoodImage?foodName=${encodeURIComponent(suggestedFood)}`)
@@ -33,7 +44,7 @@ export default function BotResponseCard({ response }) {
     }, [suggestedFood, count, targetScore]);
 
     return (
-        <div className="bg-gray-700 rounded-lg p-4 w-full max-w-lg space-y-4">
+        <div className="bg-gray-700 rounded-lg p-4 w-full max-w-lg space-y-4 shadow-lg">
             {imageLoading && <ImagePlaceholder />}
             {imageUrl && (
                 <img src={imageUrl} alt={suggestedFood} className="w-full h-48 object-cover rounded-lg"
@@ -43,7 +54,7 @@ export default function BotResponseCard({ response }) {
             )}
             <div>
                 <p className="text-xs text-gray-400">Detected Mood</p>
-                <p className="text-lg font-semibold text-yellow-400">{predictedMood}</p>
+                <p className="text-lg font-semibold text-yellow-400 capitalize">{predictedMood}</p>
             </div>
             <div className="bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="text-center sm:text-left">
@@ -68,19 +79,22 @@ export default function BotResponseCard({ response }) {
                     </div>
                     <p className="text-2xl font-bold">{suggestedFood}</p>
                 </div>
-                <div className="text-center bg-gray-900/50 p-2 rounded-lg">
-                     <p className="text-xs text-gray-400">Confidence</p>
-                     <motion.p className="text-3xl font-mono font-bold text-green-400">{rounded}</motion.p>
+                
+                {/* WP2.1: Honest label as AI Match Rating (AI-generated indicator) */}
+                <div className="text-center bg-gray-900/60 p-2.5 rounded-lg border border-gray-700/60 min-w-[120px]">
+                     <p className="text-[11px] text-gray-400 font-medium">AI Match Rating</p>
+                     <motion.p className="text-2xl font-mono font-bold text-green-400">{rounded}%</motion.p>
+                     <p className="text-[9px] text-gray-500">AI-generated indicator</p>
                 </div>
             </div>
             <div>
                 <p className="text-xs text-gray-400 mb-1">Reason</p>
-                <motion.p className={`text-sm text-gray-300 overflow-hidden`} animate={{ height: isExpanded ? 'auto' : '40px' }} >{reason}</motion.p>
+                <motion.p className="text-sm text-gray-300 overflow-hidden" animate={{ height: isExpanded ? 'auto' : '40px' }} >{reason}</motion.p>
                 <button onClick={() => setIsExpanded(!isExpanded)} className="text-xs text-blue-400 hover:underline mt-1">{isExpanded ? 'Show Less' : 'Show More...'}</button>
             </div>
             {source && (
                 <div className="text-right text-xs text-gray-500 pt-2 border-t border-gray-600/50">
-                    Powered by: {source}
+                    Model: {source}
                 </div>
             )}
         </div>
