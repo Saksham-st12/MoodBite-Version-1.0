@@ -130,7 +130,10 @@ export default function HomePage() {
             const botMessage = { role: 'bot', content: data };
             setMessages(prev => [...prev, botMessage]);
             if (data.choices && data.choices.length > 0) {
-                speak(`Here are ${data.choices.length} dishes you can make with your ingredients. Pick one to see the full recipe!`);
+                const narration = (activeIngredients && activeIngredients.length > 0)
+                    ? `Here are ${data.choices.length} dishes you can make with your ingredients. Pick one to see the full recipe!`
+                    : `Here are ${data.choices.length} comforting dishes tailored to your mood. Pick one to see the full recipe!`;
+                speak(narration);
             } else if (data.suggestedFood) {
                 speak(`${data.suggestedFood}. ${data.reason}`);
             }

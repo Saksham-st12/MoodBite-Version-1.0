@@ -167,12 +167,22 @@ export default async function handler(req, res) {
             dietaryInstruction = `DIETARY INSTRUCTION: The user has no strict preference (can be vegetarian or non-vegetarian). Set "dietaryType" accurately to either "veg" or "non-veg".`;
         }
 
+        const hasIngredients = Array.isArray(ingredients) && ingredients.length > 0;
+
         // WP2.1: Renamed from confidenceScore to llmSelfRating in system prompt
+        const summaryGuidance = hasIngredients
+            ? `"Here are 4 dishes you can cook using your available ingredients to lift your ${predictedMood} mood"`
+            : `"Here are 4 comforting Indian dishes to match and soothe your ${predictedMood} mood"`;
+
+        const matchReasonGuidance = hasIngredients
+            ? `How it utilizes their available ingredients to elevate their mood`
+            : `Scientific or culinary rationale on why this dish soothes their ${predictedMood} mood`;
+
         const schemaInstruction = `Respond ONLY with a valid JSON object matching these exact keys:
 {
   "predictedMood": "${predictedMood}",
   "dietaryType": "${dietaryPreference === 'non-veg' ? 'non-veg' : 'veg'}",
-  "summary": "1-sentence summary of recommendations",
+  "summary": ${JSON.stringify(summaryGuidance)},
   "suggestedFood": "Exact name of top choice",
   "reason": "1-2 sentence appetizing reason",
   "llmSelfRating": 88,
@@ -184,17 +194,17 @@ export default async function handler(req, res) {
       "cookTime": "20 mins",
       "difficulty": "Easy",
       "dietaryType": "${dietaryPreference === 'non-veg' ? 'non-veg' : 'veg'}",
-      "matchReason": "How it utilizes their mood and pantry ingredients"
+      "matchReason": "${matchReasonGuidance}"
     }
   ]
 }
-Note: "llmSelfRating" must be an integer between 80 and 95 (representing your self-assessed relevance score). "choices" must contain 4 to 5 distinct Indian dishes.`;
+Note: "llmSelfRating" must be an integer between 80 and 95. "choices" must contain 4 to 5 distinct Indian dishes.`;
 
         let prompt;
-        if (ingredients && ingredients.length > 0) {
-            prompt = `The user is feeling: "${predictedMood}". The user has these available ingredients: [${ingredients.join(', ')}]. User input: "${userInput}". Based on this mood and these available ingredients, suggest 4 to 5 distinct, creative Indian meals they can cook. ${dietaryInstruction} ${schemaInstruction}`;
+        if (hasIngredients) {
+            prompt = `The user is feeling: "${predictedMood}". The user has these available ingredients in their kitchen: [${ingredients.join(', ')}]. User input: "${userInput}". Based on this mood and these available ingredients, suggest 4 to 5 distinct, creative Indian meals they can cook. ${dietaryInstruction} ${schemaInstruction}`;
         } else {
-            prompt = `The user is feeling: "${predictedMood}". User input: "${userInput}". Suggest 4 to 5 distinct, creative and appropriate Indian meals for this mood. ${dietaryInstruction} ${schemaInstruction}`;
+            prompt = `The user is feeling: "${predictedMood}". User input: "${userInput}". CRITICAL INSTRUCTION: The user provided NO kitchen ingredients (this is a pure mood-based request). Do NOT mention 'your ingredients' or 'pantry ingredients' anywhere in the summary, descriptions, or matchReason. Suggest 4 to 5 distinct, culturally authentic Indian comfort dishes specifically tailored to soothe, comfort, or elevate someone feeling "${predictedMood}". ${dietaryInstruction} ${schemaInstruction}`;
         }
 
         // WP2.2: Documented Deterministic Model Hierarchy
@@ -273,7 +283,9 @@ Note: "llmSelfRating" must be an integer between 80 and 95 (representing your se
             validatedOutput = {
                 predictedMood: predictedMood || "tired",
                 dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
-                summary: `Soothing comfort meal designed to restore your energy and mood.`,
+                summary: hasIngredients
+                    ? "Here are comforting dishes you can make using your available ingredients."
+                    : `Here are comforting dishes formulated to soothe and elevate your ${predictedMood} mood.`,
                 suggestedFood: fallbackDish.name,
                 reason: fallbackDish.desc,
                 llmSelfRating: 85,
@@ -286,7 +298,7 @@ Note: "llmSelfRating" must be an integer between 80 and 95 (representing your se
                         cookTime: fallbackDish.time,
                         difficulty: "Easy",
                         dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
-                        matchReason: "Gentle comfort food formulated to soothe your mood."
+                        matchReason: `Soothing comfort meal designed to comfort your ${predictedMood} mood.`
                     },
                     {
                         id: "2",
@@ -301,6 +313,25 @@ Note: "llmSelfRating" must be an integer between 80 and 95 (representing your se
             };
             selectedSource = 'Deterministic Safe Fallback';
         }
+
+        // Clean up any hallucinated ingredient mentions when no ingredients were provided
+        if (!hasIngredients) {
+            if (validatedOutput.summary) {
+                validatedOutput.summary = validatedOutput.summary
+                    .replace(/with (your|available|these) ingredients/gi, 'for your mood')
+                    .replace(/using (your|available|these) ingredients/gi, 'tailored to your mood')
+                    .replace(/tailored to your ingredients and mood/gi, 'tailored to your mood');
+            }
+            validatedOutput.choices = validatedOutput.choices.map(choice => ({
+                ...choice,
+                matchReason: (choice.matchReason || '')
+                    .replace(/with (your|available|these) ingredients/gi, 'for your mood')
+                    .replace(/using (your|available|these) ingredients/gi, 'to elevate your mood')
+                    .replace(/uses your pantry ingredients/gi, 'matches your emotional state')
+            }));
+        }
+
+        validatedOutput.hasUserIngredients = hasIngredients;
 
         // Ensure top suggestion matches top choice
         if (validatedOutput.choices.length > 0) {

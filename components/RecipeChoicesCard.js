@@ -10,10 +10,25 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
         dietaryType, 
         llmSelfRating, 
         confidenceScore, 
+        hasUserIngredients,
         source 
     } = response;
 
     const rating = llmSelfRating || confidenceScore || 85;
+
+    // Determine whether user supplied ingredients
+    const hasIngredients = Boolean(hasUserIngredients) || choices.some(c => typeof c.ingredientMatchCount === 'number' && c.ingredientMatchCount > 0);
+
+    const defaultSummary = hasIngredients
+        ? `Here are ${choices.length || 4} great recipes tailored to your ingredients and mood:`
+        : `Here are ${choices.length || 4} comforting recipes tailored to your ${predictedMood || 'current'} mood:`;
+
+    const displaySummary = (!hasIngredients && summary)
+        ? summary
+            .replace(/with (your|available|these) ingredients/gi, 'for your mood')
+            .replace(/using (your|available|these) ingredients/gi, 'tailored to your mood')
+            .replace(/tailored to your ingredients and mood/gi, 'tailored to your mood')
+        : (summary || defaultSummary);
 
     return (
         <div className="bg-gray-800/90 border border-gray-700/80 rounded-2xl p-4 sm:p-5 w-full max-w-2xl space-y-4 shadow-xl backdrop-blur-md">
@@ -32,7 +47,7 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                         )}
                     </div>
                     <p className="text-sm text-gray-200 mt-1 font-medium">
-                        {summary || `Here are ${choices.length || 4} great recipes tailored to your ingredients and mood:`}
+                        {displaySummary}
                     </p>
                 </div>
 
