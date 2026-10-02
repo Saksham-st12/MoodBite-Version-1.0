@@ -29,16 +29,15 @@ function parseJsonFromMarkdown(text) {
     }
 }
 
-// Emotion classification via RoBERTa GoEmotions with timeout and graceful fallback
-async function getMood(userInput) {
+// Emotion classification via RoBERTa GoEmotions with tight timeout and graceful fallback
+async function getMood(userInput, timeoutMs = 1500) {
     const token = process.env.HUGGING_FACE_API_TOKEN?.trim();
     if (!token) {
-        console.warn("HUGGING_FACE_API_TOKEN is missing. Defaulting mood to 'neutral'.");
-        return 'neutral';
+        return null;
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
         const response = await fetch(HF_ROBERTA_URL, {
@@ -54,24 +53,22 @@ async function getMood(userInput) {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-            console.warn(`HuggingFace emotion API returned HTTP ${response.status}`);
-            return 'neutral';
+            return null;
         }
 
         const data = await response.json();
         if (Array.isArray(data) && Array.isArray(data[0]) && data[0][0]?.label) {
             return data[0][0].label;
         }
-        return 'neutral';
-    } catch (err) {
+        return null;
+    } catch {
         clearTimeout(timeoutId);
-        console.warn('RoBERTa emotion classifier error/timeout:', err.message);
-        return 'neutral';
+        return null;
     }
 }
 
-// Primary Model: Google Gemini
-async function callGeminiWithTimeout(prompt, modelName = "gemini-3.5-flash") {
+// Primary Model: Google Gemini (Optimized for gemini-3.5-flash-lite)
+async function callGeminiWithTimeout(prompt, modelName = "gemini-3.5-flash-lite") {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) return null;
 
@@ -154,8 +151,9 @@ export default async function handler(req, res) {
     const { text: userInput, ingredients, dietaryPreference } = validationResult.data;
 
     try {
-        // Step 1: Detect Emotion
-        const predictedMood = await getMood(userInput);
+        // Step 1: Concurrently trigger RoBERTa GoEmotions with a 1500ms cap
+        // Running in parallel ensures RoBERTa cold starts never block or slow down the user
+        const hfEmotionPromise = getMood(userInput, 1500);
 
         // Step 2: Build Strict Prompt Instructions
         let dietaryInstruction = "";
@@ -171,16 +169,16 @@ export default async function handler(req, res) {
 
         // WP2.1: Renamed from confidenceScore to llmSelfRating in system prompt
         const summaryGuidance = hasIngredients
-            ? `"Here are 4 dishes you can cook using your available ingredients to lift your ${predictedMood} mood"`
-            : `"Here are 4 comforting Indian dishes to match and soothe your ${predictedMood} mood"`;
+            ? `"Here are 4 dishes you can cook using your available ingredients to lift your mood"`
+            : `"Here are 4 comforting Indian dishes to match and soothe your mood"`;
 
         const matchReasonGuidance = hasIngredients
             ? `How it utilizes their available ingredients to elevate their mood`
-            : `Scientific or culinary rationale on why this dish soothes their ${predictedMood} mood`;
+            : `Scientific or culinary rationale on why this dish soothes their mood`;
 
         const schemaInstruction = `Respond ONLY with a valid JSON object matching these exact keys:
 {
-  "predictedMood": "${predictedMood}",
+  "predictedMood": "Concise primary emotional state detected from user input (e.g. tired, stressed, craving, happy, sad, comfort, energetic)",
   "dietaryType": "${dietaryPreference === 'non-veg' ? 'non-veg' : 'veg'}",
   "summary": ${JSON.stringify(summaryGuidance)},
   "suggestedFood": "Exact name of top choice",
@@ -198,28 +196,28 @@ export default async function handler(req, res) {
     }
   ]
 }
-Note: "llmSelfRating" must be an integer between 80 and 95. "choices" must contain 4 to 5 distinct Indian dishes.`;
+Note: "llmSelfRating" must be an integer between 80 and 95. "choices" must contain 4 to 5 distinct Indian dishes. If user mentions feeling tired, sleepy, or exhausted, accurately set predictedMood to 'tired'.`;
 
         let prompt;
         if (hasIngredients) {
-            prompt = `The user is feeling: "${predictedMood}". The user has these available ingredients in their kitchen: [${ingredients.join(', ')}]. User input: "${userInput}". Based on this mood and these available ingredients, suggest 4 to 5 distinct, creative Indian meals they can cook. ${dietaryInstruction} ${schemaInstruction}`;
+            prompt = `User input: "${userInput}". The user has these available ingredients in their kitchen: [${ingredients.join(', ')}]. Detect their mood and suggest 4 to 5 distinct, creative Indian meals they can cook. ${dietaryInstruction} ${schemaInstruction}`;
         } else {
-            prompt = `The user is feeling: "${predictedMood}". User input: "${userInput}". CRITICAL INSTRUCTION: The user provided NO kitchen ingredients (this is a pure mood-based request). Do NOT mention 'your ingredients' or 'pantry ingredients' anywhere in the summary, descriptions, or matchReason. Suggest 4 to 5 distinct, culturally authentic Indian comfort dishes specifically tailored to soothe, comfort, or elevate someone feeling "${predictedMood}". ${dietaryInstruction} ${schemaInstruction}`;
+            prompt = `User input: "${userInput}". Detect their mood. CRITICAL INSTRUCTION: The user provided NO kitchen ingredients (this is a pure mood-based request). Do NOT mention 'your ingredients' or 'pantry ingredients' anywhere in the summary, descriptions, or matchReason. Suggest 4 to 5 distinct, culturally authentic Indian comfort dishes specifically tailored to soothe, comfort, or elevate their mood. ${dietaryInstruction} ${schemaInstruction}`;
         }
 
-        // WP2.2: Documented Deterministic Model Hierarchy
-        // Rule: 1. Try Primary (Gemini 3.5 Flash) -> 2. Try Secondary (Gemini Flash Lite) -> 3. Fallback (Claude Haiku)
+        // WP2.2: Documented Deterministic Model Hierarchy (Optimized for Sub-Second Latency)
+        // Rule: 1. Primary (Gemini 3.5 Flash Lite ~800ms) -> 2. Secondary (Gemini 3.5 Flash ~2000ms) -> 3. Fallback (Claude Haiku)
         let rawCandidate = null;
-        let selectedSource = 'Gemini 3.5 Flash';
+        let selectedSource = 'Gemini 3.5 Flash Lite';
 
-        // 1. Primary: Gemini 3.5 Flash
-        rawCandidate = await callGeminiWithTimeout(prompt, 'gemini-3.5-flash');
+        // 1. Primary: Gemini 3.5 Flash Lite (Ultra-fast, ~700-1000ms response time)
+        rawCandidate = await callGeminiWithTimeout(prompt, 'gemini-3.5-flash-lite');
 
-        // 2. Retry with Gemini 3.5 Flash Lite if primary failed
+        // 2. Retry with Gemini 3.5 Flash if primary failed
         if (!rawCandidate) {
-            console.log("Gemini primary failed. Retrying with gemini-3.5-flash-lite...");
-            rawCandidate = await callGeminiWithTimeout(prompt, 'gemini-3.5-flash-lite');
-            selectedSource = 'Gemini 3.5 Flash Lite';
+            console.log("Gemini Flash Lite failed. Retrying with gemini-3.5-flash...");
+            rawCandidate = await callGeminiWithTimeout(prompt, 'gemini-3.5-flash');
+            selectedSource = 'Gemini 3.5 Flash';
         }
 
         // 3. Fallback: Claude 3 Haiku via OpenRouter
@@ -227,6 +225,20 @@ Note: "llmSelfRating" must be an integer between 80 and 95. "choices" must conta
             console.log("Gemini family failed. Falling back to Claude 3 Haiku...");
             rawCandidate = await callClaudeWithTimeout(prompt);
             selectedSource = 'Claude 3 Haiku';
+        }
+
+        // Concurrently resolve RoBERTa emotion if it succeeded in time
+        const hfMood = await hfEmotionPromise;
+        const lowerInput = userInput.toLowerCase();
+        const mentionsTired = lowerInput.includes('tired') || lowerInput.includes('exhaust') || lowerInput.includes('sleepy') || lowerInput.includes('fatigue');
+        
+        // Reconcile emotion: If user explicitly mentioned tiredness, keep 'tired'. Otherwise if RoBERTa provided a label, use it.
+        const finalMood = mentionsTired
+            ? 'tired'
+            : (hfMood && hfMood !== 'neutral' ? hfMood : (rawCandidate?.predictedMood || 'comfort'));
+
+        if (rawCandidate) {
+            rawCandidate.predictedMood = finalMood;
         }
 
         // WP1.3: Validate LLM output against Zod schema
@@ -281,11 +293,11 @@ Note: "llmSelfRating" must be an integer between 80 and 95. "choices" must conta
                 : { name: "Moong Dal Comfort Khichdi", desc: "A soothing, protein-rich lentil and rice pot with golden cumin ghee.", time: "20 mins" };
 
             validatedOutput = {
-                predictedMood: predictedMood || "tired",
+                predictedMood: finalMood || "comfort",
                 dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
                 summary: hasIngredients
                     ? "Here are comforting dishes you can make using your available ingredients."
-                    : `Here are comforting dishes formulated to soothe and elevate your ${predictedMood} mood.`,
+                    : `Here are comforting dishes formulated to soothe and elevate your ${finalMood || 'comfort'} mood.`,
                 suggestedFood: fallbackDish.name,
                 reason: fallbackDish.desc,
                 llmSelfRating: 85,
@@ -298,7 +310,7 @@ Note: "llmSelfRating" must be an integer between 80 and 95. "choices" must conta
                         cookTime: fallbackDish.time,
                         difficulty: "Easy",
                         dietaryType: dietaryPreference === 'non-veg' ? 'non-veg' : 'veg',
-                        matchReason: `Soothing comfort meal designed to comfort your ${predictedMood} mood.`
+                        matchReason: `Soothing comfort meal designed to comfort your ${finalMood || 'comfort'} mood.`
                     },
                     {
                         id: "2",

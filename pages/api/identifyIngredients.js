@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ALLOWED_IMAGE_MIME_TYPES, MAX_IMAGE_SIZE_BYTES } from '../../lib/validation';
 import { applyRateLimit } from '../../lib/rateLimit';
 
-const GEMINI_VISION_TIMEOUT_MS = 12000;
+const GEMINI_VISION_TIMEOUT_MS = 8000;
 
 export const config = {
     api: {
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         });
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
 
         const prompt = "Analyze this image and list only the identifiable raw or prepared food ingredients you see. Exclude bowls, plates, packaging, and utensils. Return the ingredients as a clean, lowercase comma-separated list. Example: 'tomato, garlic, paneer, coriander'.";
         const imagePart = bufferToGenerativePart(imageBuffer, contentType);

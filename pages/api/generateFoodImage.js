@@ -56,6 +56,7 @@ export default async function handler(req, res) {
         }
 
         const imageUrl = result.photos[0].src?.large || result.photos[0].src?.medium;
+        res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800');
         return res.status(200).json({ imageUrl });
 
     } catch (error) {

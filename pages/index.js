@@ -25,7 +25,7 @@ export default function HomePage() {
     const chatEndRef = useRef(null);
 
     useEffect(() => {
-        const timer = setTimeout(() => { setIsAppLoading(false); }, 5000);
+        const timer = setTimeout(() => { setIsAppLoading(false); }, 300);
         return () => clearTimeout(timer);
     }, []);
 

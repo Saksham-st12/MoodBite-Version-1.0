@@ -5,7 +5,7 @@ import { getRecipeDetailsInputSchema, recipeDetailsOutputSchema } from '../../li
 import { applyRateLimit } from '../../lib/rateLimit';
 import { verifyDietaryCompliance } from '../../lib/dietaryCheck';
 
-const AI_TIMEOUT_MS = 12000;
+const AI_TIMEOUT_MS = 8000;
 
 function parseJsonFromMarkdown(text) {
     if (!text || typeof text !== 'string') return null;
@@ -26,7 +26,7 @@ function parseJsonFromMarkdown(text) {
     }
 }
 
-async function callGeminiRecipe(prompt, modelName = "gemini-3.5-flash") {
+async function callGeminiRecipe(prompt, modelName = "gemini-3.5-flash-lite") {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) return null;
 
@@ -138,12 +138,12 @@ Respond ONLY with a valid JSON object matching this exact schema:
   "emotionalTherapy": "1-2 sentence scientific or comfort note on why this dish soothes their mood."
 }`;
 
-        // WP1.4: Primary (Gemini) -> Fallback (Claude)
-        let rawRecipe = await callGeminiRecipe(prompt, 'gemini-3.5-flash');
+        // WP1.4: Primary (Gemini 3.5 Flash Lite) -> Secondary (Gemini 3.5 Flash) -> Fallback (Claude)
+        let rawRecipe = await callGeminiRecipe(prompt, 'gemini-3.5-flash-lite');
 
         if (!rawRecipe) {
-            console.log("Gemini recipe failed. Trying gemini-3.5-flash-lite...");
-            rawRecipe = await callGeminiRecipe(prompt, 'gemini-3.5-flash-lite');
+            console.log("Gemini Flash Lite failed. Trying gemini-3.5-flash...");
+            rawRecipe = await callGeminiRecipe(prompt, 'gemini-3.5-flash');
         }
 
         if (!rawRecipe) {
