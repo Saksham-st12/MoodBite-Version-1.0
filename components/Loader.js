@@ -31,9 +31,18 @@ const itemVariants = {
     },
 };
 
-export default function Loader() {
+export default function Loader({ onSkip }) {
     return (
-        <div className="w-full h-screen bg-black flex items-center justify-center">
+        <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center">
+            {onSkip && (
+                <button
+                    type="button"
+                    onClick={onSkip}
+                    className="absolute top-6 right-6 px-3.5 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-900/60 hover:bg-gray-800 border border-gray-800 hover:border-gray-600 rounded-full transition-all duration-200 cursor-pointer"
+                >
+                    Skip ➔
+                </button>
+            )}
             <motion.div
                 className="flex flex-col space-y-6"
                 variants={containerVariants}
@@ -59,6 +68,15 @@ export default function Loader() {
                         </div>
                     </motion.div>
                 ))}
+                
+                <motion.p
+                    className="text-xs text-gray-500 tracking-widest uppercase text-center pt-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1.6, duration: 0.5 }}
+                >
+                    Initializing MoodBite AI...
+                </motion.p>
             </motion.div>
         </div>
     );

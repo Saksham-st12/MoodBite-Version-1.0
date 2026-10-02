@@ -25,7 +25,7 @@ export default function HomePage() {
     const chatEndRef = useRef(null);
 
     useEffect(() => {
-        const timer = setTimeout(() => { setIsAppLoading(false); }, 300);
+        const timer = setTimeout(() => { setIsAppLoading(false); }, 3800);
         return () => clearTimeout(timer);
     }, []);
 
@@ -240,7 +240,7 @@ export default function HomePage() {
     };
 
     if (isAppLoading) {
-        return <Loader />;
+        return <Loader onSkip={() => setIsAppLoading(false)} />;
     }
 
     return (
