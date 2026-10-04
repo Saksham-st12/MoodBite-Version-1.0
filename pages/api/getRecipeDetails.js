@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getRecipeDetailsInputSchema, recipeDetailsOutputSchema } from '../../lib/validation';
 import { applyRateLimit } from '../../lib/rateLimit';
 import { verifyDietaryCompliance, detectNonVegKeywords, calculateIngredientMatch } from '../../lib/dietaryCheck';
+import { getAuthenticatedUser } from '../../lib/supabaseServer';
 
 const AI_TIMEOUT_MS = 8000;
 
@@ -129,6 +130,9 @@ export default async function handler(req, res) {
     }
 
     try {
+        // WP3: Optional Server-side authentication check (supports both authenticated users and guests)
+        const { user: authUser } = await getAuthenticatedUser(req);
+
         const dietaryConstraint = effectiveDiet === 'non-veg'
             ? 'Ensure this recipe is authentically NON-VEGETARIAN with poultry/meat/fish/eggs.'
             : 'Ensure this recipe is strictly 100% VEGETARIAN (absolutely no meat, chicken, mutton, fish, or eggs).';
@@ -236,6 +240,7 @@ Respond ONLY with a valid JSON object matching this exact schema:
 
         // Calculate deterministic ingredient match score
         validatedRecipe.ingredientMatch = calculateIngredientMatch(validatedRecipe, sanitizedIngredients);
+        validatedRecipe.authenticatedUserId = authUser?.id || null;
 
         return res.status(200).json(validatedRecipe);
 

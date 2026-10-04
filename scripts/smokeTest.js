@@ -134,6 +134,37 @@ async function runTests() {
         assert(false, `Test 7 threw error: ${err.message}`);
     }
 
+    // Test 8: Image API returns photographer attribution metadata
+    try {
+        const res = await fetch(`${BASE_URL}/api/generateFoodImage?foodName=Samosa`);
+        const data = await res.json();
+        assert(res.status === 200, 'generateFoodImage returns HTTP 200');
+        assert(typeof data.imageUrl === 'string' && data.imageUrl.startsWith('http'), 'Returns valid imageUrl string');
+        assert(typeof data.photographer === 'string' && data.photographer.length > 0, 'Returns real Pexels photographer credit');
+        assert(typeof data.photographerUrl === 'string' && data.photographerUrl.startsWith('http'), 'Returns photographer profile URL');
+    } catch (err) {
+        assert(false, `Test 8 threw error: ${err.message}`);
+    }
+
+    // Test 9: Recipe API returns isFallback, fallbackNotice, and ingredientMatch
+    try {
+        const res = await fetch(`${BASE_URL}/api/getRecipeDetails`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dishName: 'Aloo Gobi',
+                ingredients: ['potato', 'cauliflower', 'turmeric'],
+                dietaryPreference: 'veg'
+            })
+        });
+        const data = await res.json();
+        assert(res.status === 200, 'getRecipeDetails returns HTTP 200 for Aloo Gobi');
+        assert(typeof data.isFallback === 'boolean', 'Returns explicit isFallback boolean');
+        assert(typeof data.ingredientMatch === 'object' && typeof data.ingredientMatch.matchCount === 'number', 'Returns calculated ingredientMatch statistics object');
+    } catch (err) {
+        assert(false, `Test 9 threw error: ${err.message}`);
+    }
+
     console.log(`\n========================================`);
     console.log(`Total: ${passed + failed} | Passed: ${passed} | Failed: ${failed}`);
     console.log(`========================================\n`);

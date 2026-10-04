@@ -1,39 +1,16 @@
-// components/Loader.js (New Animated Splash Screen)
+// components/Loader.js (Clean, Minimalist Splash Screen)
 import { motion } from 'framer-motion';
-import { NextjsLogo, GeminiLogo, HuggingFaceLogo, PexelsLogo } from './TechLogos';
 
-const techStack = [
-    { name: "NEXT.JS", Logo: NextjsLogo },
-    { name: "GOOGLE GEMINI", Logo: GeminiLogo },
-    { name: "HUGGING FACE", Logo: HuggingFaceLogo },
-    { name: "PEXELS API", Logo: PexelsLogo },
+const techBadges = [
+    { label: "Next.js", role: "Framework", tag: "React 19" },
+    { label: "Google Gemini", role: "Reasoning & Vision", tag: "3.5 Flash Lite" },
+    { label: "RoBERTa GoEmotions", role: "Emotion NLP Head", tag: "Hugging Face" },
+    { label: "Supabase", role: "Auth & Database", tag: "PostgreSQL" }
 ];
-
-const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-        opacity: 1,
-        transition: {
-            staggerChildren: 0.3, // Each child animates 0.3s after the previous one
-        },
-    },
-};
-
-const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-        opacity: 1,
-        y: 0,
-        transition: {
-            duration: 0.5,
-            ease: 'easeOut',
-        },
-    },
-};
 
 export default function Loader({ onSkip }) {
     return (
-        <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center">
+        <div className="relative w-full h-screen bg-black flex flex-col items-center justify-center p-4">
             {onSkip && (
                 <button
                     type="button"
@@ -43,41 +20,69 @@ export default function Loader({ onSkip }) {
                     Skip ➔
                 </button>
             )}
-            <motion.div
-                className="flex flex-col space-y-6"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-            >
-                {techStack.map((tech, index) => (
-                    <motion.div
-                        key={tech.name}
-                        className={`flex items-center gap-4 ${index % 2 !== 0 ? 'flex-row-reverse' : ''}`}
-                        variants={itemVariants}
-                    >
-                        <tech.Logo />
-                        <div className="overflow-hidden">
-                            <motion.h1
-                                className="text-4xl sm:text-5xl font-bold tracking-wider text-white/90"
-                                initial={{ y: "100%" }}
-                                animate={{ y: 0 }}
-                                transition={{ delay: index * 0.3 + 0.2, duration: 0.5, ease: "easeOut" }}
-                            >
-                                {tech.name}
-                            </motion.h1>
+
+            <div className="w-full max-w-sm space-y-5 text-center">
+                {/* Brand Logo & Name */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4 }}
+                    className="space-y-1.5"
+                >
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 mx-auto flex items-center justify-center text-2xl shadow-xl shadow-purple-600/30">
+                        🍲
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-wider text-white">
+                        MOODBITE AI
+                    </h1>
+                    <p className="text-xs text-gray-400">
+                        Emotion-Aware Indian Culinary Assistant
+                    </p>
+                </motion.div>
+
+                {/* Architecture Pipeline Stack */}
+                <motion.div
+                    className="grid grid-cols-2 gap-2 pt-2 text-left"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.4 }}
+                >
+                    {techBadges.map((tech) => (
+                        <div
+                            key={tech.label}
+                            className="bg-gray-900/80 border border-gray-800 p-2.5 rounded-xl space-y-0.5"
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-white">{tech.label}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-400">{tech.role}</p>
+                            <span className="inline-block text-[9px] font-mono text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800/40">
+                                {tech.tag}
+                            </span>
                         </div>
-                    </motion.div>
-                ))}
-                
-                <motion.p
-                    className="text-xs text-gray-500 tracking-widest uppercase text-center pt-2"
+                    ))}
+                </motion.div>
+
+                {/* Progress bar */}
+                <motion.div
+                    className="pt-3"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 1.6, duration: 0.5 }}
+                    transition={{ delay: 0.4 }}
                 >
-                    Initializing MoodBite AI...
-                </motion.p>
-            </motion.div>
+                    <div className="w-48 h-1 bg-gray-800 rounded-full mx-auto overflow-hidden">
+                        <motion.div
+                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ width: "0%" }}
+                            animate={{ width: "100%" }}
+                            transition={{ duration: 2.5, ease: "easeInOut" }}
+                        />
+                    </div>
+                    <p className="text-[10px] text-gray-500 pt-2 tracking-wide uppercase">
+                        Initializing models...
+                    </p>
+                </motion.div>
+            </div>
         </div>
     );
 }

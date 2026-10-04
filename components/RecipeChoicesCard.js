@@ -1,4 +1,4 @@
-// components/RecipeChoicesCard.js (Updated for WP2.1 & WP2.3)
+// components/RecipeChoicesCard.js
 import React from 'react';
 import { motion } from 'framer-motion';
 
@@ -8,13 +8,9 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
         choices = [], 
         summary, 
         dietaryType, 
-        llmSelfRating, 
-        confidenceScore, 
         hasUserIngredients,
         source 
     } = response;
-
-    const rating = llmSelfRating || confidenceScore || 85;
 
     // Determine whether user supplied ingredients
     const hasIngredients = Boolean(hasUserIngredients) || choices.some(c => typeof c.ingredientMatchCount === 'number' && c.ingredientMatchCount > 0);
@@ -32,7 +28,7 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
 
     return (
         <div className="bg-gray-800/90 border border-gray-700/80 rounded-2xl p-4 sm:p-5 w-full max-w-2xl space-y-4 shadow-xl backdrop-blur-md">
-            {/* Header: Detected Mood, Summary & Honest AI Match Rating (WP2.1) */}
+            {/* Header: Detected Mood & Summary */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-700/60">
                 <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -50,15 +46,6 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                         {displaySummary}
                     </p>
                 </div>
-
-                {/* WP2.1: Honest AI Match Rating */}
-                <div className="flex-shrink-0 flex items-center gap-2 bg-gray-900/70 border border-gray-700/70 rounded-xl px-3 py-1.5 self-start sm:self-center">
-                    <div className="text-right">
-                        <p className="text-[10px] text-gray-400 font-medium">AI Match Rating</p>
-                        <p className="text-[9px] text-gray-500">Self-reported indicator</p>
-                    </div>
-                    <span className="text-lg font-mono font-bold text-green-400">{rating}%</span>
-                </div>
             </div>
 
             {/* Recipe Choices Grid */}
@@ -75,10 +62,10 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                         >
                             <div className="flex-1 space-y-1.5">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    {/* FSSAI Veg / Non-Veg Icon */}
+                                    {/* Veg / Non-Veg indicator */}
                                     <span className={`w-3.5 h-3.5 border-2 flex items-center justify-center rounded-[2px] p-[1px] bg-black/60 ${
                                         isVeg ? 'border-green-500' : 'border-red-500'
-                                    }`} title={isVeg ? "Vegetarian" : "Non-Vegetarian"}>
+                                    }`} title={isVeg ? "Vegetarian indicator" : "Non-Vegetarian indicator"}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
                                     </span>
 
@@ -98,7 +85,7 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                                         </span>
                                     )}
 
-                                    {/* WP2.3: Deterministic Ingredient Match Indicator */}
+                                    {/* Deterministic Ingredient Match Indicator */}
                                     {typeof choice.ingredientMatchCount === 'number' && choice.ingredientMatchCount > 0 && (
                                         <span className="text-[11px] px-2 py-0.5 rounded-md bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
                                             🎯 Matched {choice.ingredientMatchCount} item{choice.ingredientMatchCount > 1 ? 's' : ''}

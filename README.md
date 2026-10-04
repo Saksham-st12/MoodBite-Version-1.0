@@ -80,8 +80,8 @@ Once a user selects a recipe, MoodBite transitions into an interactive sous-chef
 
 ## 🛡️ Hardening, Reliability & Security (WP1 & WP2)
 
-### 1. Zero Client-Side Secret Leakage (WP1.1)
-All API keys are strictly loaded and executed within serverless routes (`pages/api/*`). No `NEXT_PUBLIC_` prefixes are assigned to sensitive AI or vision keys.
+### 1. Key Security and Access Architecture (WP1.1 & WP3)
+All backend AI and Vision API keys (`GEMINI_API_KEY`, `HUGGING_FACE_API_TOKEN`, `OPENROUTER_API_KEY`, `PEXELS_API_KEY`) are strictly loaded and executed within serverless routes (`pages/api/*`), never exposed to the client. The `NEXT_PUBLIC_SUPABASE_ANON_KEY` is public by design for client-side authentication, and all database tables are protected using Supabase Row Level Security (RLS) policies (`auth.uid() = user_id`). The Supabase service-role key is never exposed.
 
 ### 2. Request Input Validation (WP1.2)
 All API endpoints validate incoming parameters via [Zod](https://zod.dev) using standard issue reporting:
@@ -196,6 +196,10 @@ Runs an isolated evaluation of the RoBERTa GoEmotions classifier against 52 stan
    The sliding-window rate limiter runs in Node.js process memory. For multi-instance, horizontally-scaled cloud deployments (e.g. AWS ECS or multi-region Vercel), an external Redis store (e.g. Upstash) is recommended.
 4. **Session Persistence**:
    Version 1.0 operates in client-side state. Persistent user accounts and historical tracking are slated for the upcoming work packages.
+5. **Affective Privacy & Sensitive Data**:
+   Disclosing emotional feelings involves sensitive personal data. By design, MoodBite stores only the detected mood label, ingredients, dietary preference, and selected dish—never raw emotional free-text reflections. A future "Delete my history" action will be provided in the user dashboard.
+6. **Voice Synthesis Engine**:
+   Speech narration uses the browser Web Speech API set to Indian English (`en-IN`). It prefers Google high-quality neural voices available in Chromium browsers (Chrome/Edge), gracefully falling back to standard system speech synthesis on other platforms.
 
 ---
 

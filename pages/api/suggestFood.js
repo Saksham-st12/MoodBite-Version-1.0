@@ -3,6 +3,7 @@ import { suggestFoodInputSchema, suggestFoodOutputSchema } from '../../lib/valid
 import { applyRateLimit } from '../../lib/rateLimit';
 import { verifyDietaryCompliance, calculateIngredientMatch, detectNonVegKeywords } from '../../lib/dietaryCheck';
 import { getMood, mapGoEmotionToCulinaryMood } from '../../lib/emotion';
+import { getAuthenticatedUser } from '../../lib/supabaseServer';
 
 const PRIMARY_TIMEOUT_MS = 6000;
 const FALLBACK_TIMEOUT_MS = 4000;
@@ -121,6 +122,9 @@ export default async function handler(req, res) {
     const ingredients = (rawIngredients || []).map(sanitizeInput);
 
     try {
+        // WP3: Optional Server-side authentication check (supports both authenticated users and guests)
+        const { user: authUser } = await getAuthenticatedUser(req);
+
         // Step 1: Detect Emotion with RoBERTa GoEmotions (1500ms timeout cap)
         // Genuine hybrid architecture: Awaiting classifier so its output directly informs the LLM prompt
         const emotionResult = await getMood(userInput, 1500);
@@ -359,7 +363,8 @@ CRITICAL INSTRUCTION: The user provided NO kitchen ingredients (this is a pure m
             ...validatedOutput,
             moodSource,
             classifierStatus: emotionResult.status,
-            source: selectedSource
+            source: selectedSource,
+            authenticatedUserId: authUser?.id || null
         });
 
     } catch (error) {

@@ -22,10 +22,10 @@ export default function InputOverlay({ initialIngredients = [], onSubmit, onClos
         if (!text || !text.trim()) return ingredientList;
         const newItems = text
             .split(/[\n,]+/)
-            .map(item => item.trim().toLowerCase())
+            .map(item => item.trim().toLowerCase().slice(0, 50))
             .filter(item => item.length > 0);
 
-        const updated = [...new Set([...ingredientList, ...newItems])];
+        const updated = [...new Set([...ingredientList, ...newItems])].slice(0, 25);
         setIngredientList(updated);
         return updated;
     };
@@ -33,6 +33,10 @@ export default function InputOverlay({ initialIngredients = [], onSubmit, onClos
     const handleAddClick = (e) => {
         if (e) e.preventDefault();
         if (inputValue.trim()) {
+            if (ingredientList.length >= 25) {
+                alert("Maximum 25 ingredients allowed.");
+                return;
+            }
             addIngredientsFromText(inputValue);
             setInputValue('');
         }
@@ -43,9 +47,10 @@ export default function InputOverlay({ initialIngredients = [], onSubmit, onClos
     };
 
     const handleQuickAdd = (item) => {
-        const normalized = item.toLowerCase();
+        if (ingredientList.length >= 25) return;
+        const normalized = item.toLowerCase().slice(0, 50);
         if (!ingredientList.includes(normalized)) {
-            setIngredientList(prev => [...prev, normalized]);
+            setIngredientList(prev => [...prev, normalized].slice(0, 25));
         }
     };
 
@@ -137,6 +142,7 @@ export default function InputOverlay({ initialIngredients = [], onSubmit, onClos
                                 }
                             }}
                             placeholder="e.g. paneer, tomato, capsicum, cumin (press Enter)"
+                            maxLength={50}
                             className="flex-1 px-3.5 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
                             autoFocus
                         />
