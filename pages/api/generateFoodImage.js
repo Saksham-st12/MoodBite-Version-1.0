@@ -55,9 +55,17 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'No image found for this dish.' });
         }
 
-        const imageUrl = result.photos[0].src?.large || result.photos[0].src?.medium;
+        const photo = result.photos[0];
+        const imageUrl = photo.src?.large || photo.src?.medium;
+        const photographer = photo.photographer || 'Pexels Contributor';
+        const photographerUrl = photo.photographer_url || 'https://www.pexels.com';
+
         res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800');
-        return res.status(200).json({ imageUrl });
+        return res.status(200).json({
+            imageUrl,
+            photographer,
+            photographerUrl
+        });
 
     } catch (error) {
         clearTimeout(timeoutId);

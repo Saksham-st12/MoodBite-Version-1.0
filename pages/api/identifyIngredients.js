@@ -93,7 +93,7 @@ export default async function handler(req, res) {
 
         const rawList = text
             .split(/[\n,]+/)
-            .map(item => item.replace(/^[-*•\s]+/, '').trim().toLowerCase())
+            .map(item => item.replace(/^[-*•\s]+/, '').replace(/[^a-zA-Z\s-]/g, '').trim().toLowerCase())
             .filter(item => item.length > 1 && item.length <= 40);
 
         // Deduplicate and cap to 25 items so downstream suggestFood input schema never rejects it

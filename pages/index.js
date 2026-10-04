@@ -163,7 +163,8 @@ export default function HomePage() {
                 body: JSON.stringify({
                     dishName: recipe.name,
                     ingredients,
-                    dietaryPreference: recipe.dietaryType || dietaryPreference
+                    dietaryPreference,
+                    dishDietaryType: recipe.dietaryType
                 }),
             });
 
@@ -183,6 +184,8 @@ export default function HomePage() {
                     cookTime: "20 mins",
                     servings: "2 servings",
                     difficulty: "Easy",
+                    isFallback: true,
+                    fallbackNotice: `Could not connect to recipe service. Here is a basic preparation guide for ${recipe.name}.`,
                     ingredientsList: (ingredients || []).map(item => ({ item, amount: "As needed" })),
                     instructions: [
                         "Step 1: Prep and chop your ingredients.",
@@ -191,7 +194,7 @@ export default function HomePage() {
                         "Step 4: Garnish and serve hot."
                     ],
                     chefTips: "Simmer gently to lock in natural moisture and flavors.",
-                    emotionalTherapy: "Warm comfort food stimulates mood-elevating neurotransmitters."
+                    culinaryComfort: "Warm, nourishing comfort food prepared with balancing culinary spices."
                 }
             };
             setMessages(prev => [...prev, fallbackMessage]);

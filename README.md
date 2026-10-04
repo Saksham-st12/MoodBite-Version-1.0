@@ -108,12 +108,16 @@ Protects against API quota exhaustion with per-route sliding window buckets (`li
 - `/api/generateFoodImage`: 40 requests/min.
 - Standard HTTP `429 Too Many Requests` responses with `Retry-After` headers.
 
-### 6. Honest AI Match Rating (WP2.1)
-The legacy `confidenceScore` parameter has been eliminated. The `llmSelfRating` is an honest, optional self-evaluation provided by the model. When a deterministic fallback response is served, `llmSelfRating` is set to `null` and the rating badge is hidden from the UI.
+### 6. Elimination of Arbitrary Match Ratings (WP2.1 & P1.1)
+The legacy `confidenceScore` and anchored AI self-ratings have been completely removed from the UI. Rather than displaying an arbitrary number the model self-assessed without grounding, MoodBite relies strictly on objective signals:
+- Deterministic dietary compliance verification (100% vegetarian guarantee vs. non-veg).
+- Exact pantry ingredient match counts via word boundary analysis.
+- Explicit label indicating whether a recipe is a tailored AI generation or a safe standard fallback template (`isFallback: true`).
 
 ### 7. Non-LLM Deterministic Quality Signals (WP2.3)
 - **Dietary Compliance Filter**: Uses word-boundary regex patterns against an extensive non-vegetarian keyword glossary (`chicken`, `mutton`, `fish`, `egg`, `keema`, `nihari`, `haleem`, `rogan josh`, `gelatin`, `lard`, etc.) while filtering out vegetarian exceptions (`soya keema`, `meat-free`, `eggless`).
-- **Ingredient Match Ratio**: Deterministically tallies how many user-provided pantry items appear in the suggested recipes.
+- **Ingredient Match Ratio**: Deterministically tallies how many user-provided pantry items appear in the suggested recipes, escaping special characters and enforcing word boundaries (`\b`) to eliminate false substring collisions (e.g., preventing "oil" from matching "boil" or "pea" from matching "peanut").
+- **Visual Attribution**: Integrates Pexels API photo attribution with direct links to photographer profiles and an explicit *"Illustrative image"* designation.
 
 ---
 
@@ -156,31 +160,39 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your web browser.
 
-### Production Build
-```bash
-npm run build
-npm run start
-```
-
 ### Automated Smoke Testing
 ```bash
 npm test
 ```
-Executes the automated test suite asserting:
+Executes the automated test suite (18 assertions) verifying:
 - Zod 4 request validation handling (e.g. clean HTTP 400 with issue messages on empty input)
-- AI Model health (asserts `data.source !== 'Deterministic Safe Fallback'`)
-- Full recipe details and culinary comfort extraction (no medical claims)
+- AI Model health (asserts active `gemini-3.5-flash-lite`, not safe fallback)
+- Recipe details and culinary comfort extraction (no medical claims)
 - Dietary compliance and vegetarian exception handling (`soya keema`, `meat-free`, etc.)
+- Substring collision immunity (`oil` in `boil`, `pea` in `peanut`)
+- Mixed-diet mode (`'all'`) correctly preserving non-veg dish categorization
+- Delimiter and HTML sanitization defenses
+
+### Standalone Emotion Classifier Benchmark
+```bash
+node evaluate.js
+```
+Runs an isolated evaluation of the RoBERTa GoEmotions classifier against 52 standardized benchmark sentences using the published Demszky et al. (2020) Ekman 6+1 emotion taxonomy:
+- **Strict 28-Emotion Match**: 67.3% (95% CI: 53.8% – 78.5%)
+- **Ekman 6+1 Emotion Match**: 84.6% (95% CI: 72.5% – 92.0%)
+- **Error / Timeout Accountability**: Timeouts and 429s are retained in the denominator ($n = 52$) to ensure honest reporting without data-dropping inflation.
 
 ---
 
 ## ⚠️ Known Limitations & Evaluation Notes
 
-1. **GoEmotions 28-Label Closed Taxonomy**:
+1. **Unanchored AI Self-Ratings**:
+   LLMs cannot reliably evaluate their own recommendation confidence on a numerical scale without calibration. To maintain scientific integrity, all self-rated confidence percentages have been removed from the UI.
+2. **GoEmotions 28-Label Closed Taxonomy**:
    The RoBERTa model (`SamLowe/roberta-base-go_emotions`) is trained on Google's GoEmotions dataset. In GoEmotions, physiological fatigue (*"tired"*, *"exhausted"*, *"drained"*) is categorized as a physical state rather than an affective emotion. Sentences like *"I feel tired and want food"* trigger activations on the `desire` label. MoodBite mitigates this by passing the raw prompt text to Gemini to capture low-energy contexts.
-2. **In-Memory Rate Limiting**:
+3. **In-Memory Rate Limiting**:
    The sliding-window rate limiter runs in Node.js process memory. For multi-instance, horizontally-scaled cloud deployments (e.g. AWS ECS or multi-region Vercel), an external Redis store (e.g. Upstash) is recommended.
-3. **Session Persistence**:
+4. **Session Persistence**:
    Version 1.0 operates in client-side state. Persistent user accounts and historical tracking are slated for the upcoming work packages.
 
 ---

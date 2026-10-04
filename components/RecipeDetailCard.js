@@ -23,10 +23,13 @@ export default function RecipeDetailCard({ recipe }) {
         ingredientsList = [],
         instructions = [],
         chefTips,
-        emotionalTherapy
+        culinaryComfort,
+        isFallback,
+        fallbackNotice,
+        ingredientMatch
     } = recipe;
 
-    const [imageUrl, setImageUrl] = useState(null);
+    const [imageData, setImageData] = useState(null);
     const [imageLoading, setImageLoading] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -38,7 +41,13 @@ export default function RecipeDetailCard({ recipe }) {
             fetch(`/api/generateFoodImage?foodName=${encodeURIComponent(dishName)}`)
                 .then(res => res.ok ? res.json() : Promise.reject("Image not found"))
                 .then(data => {
-                    if (data.imageUrl) setImageUrl(data.imageUrl);
+                    if (data.imageUrl) {
+                        setImageData({
+                            imageUrl: data.imageUrl,
+                            photographer: data.photographer || 'Pexels Contributor',
+                            photographerUrl: data.photographerUrl || 'https://www.pexels.com'
+                        });
+                    }
                     setImageLoading(false);
                 })
                 .catch(err => {
@@ -71,36 +80,67 @@ export default function RecipeDetailCard({ recipe }) {
 
     return (
         <div className="bg-gray-800/95 border border-purple-500/30 rounded-2xl p-4 sm:p-6 w-full max-w-2xl space-y-5 shadow-2xl backdrop-blur-md">
-            {/* Dish Photo */}
-            {imageLoading && <ImagePlaceholder />}
-            {imageUrl && !imageLoading && (
-                <div className="relative rounded-xl overflow-hidden shadow-lg border border-gray-700/60 max-h-56">
-                    <img
-                        src={imageUrl}
-                        alt={dishName}
-                        className="w-full h-52 sm:h-56 object-cover hover:scale-105 transition-transform duration-500"
-                        onError={() => setImageUrl(null)}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                    
-                    {/* Floating Title on Image */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-                        <h2 className="text-xl sm:text-2xl font-extrabold text-white drop-shadow-md">
-                            {dishName}
-                        </h2>
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-md ${
-                            isVeg
-                                ? 'bg-green-950/80 border-green-500 text-green-300'
-                                : 'bg-red-950/80 border-red-500 text-red-300'
-                        }`}>
-                            <span className={`w-2.5 h-2.5 rounded-full ${isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
-                            {isVeg ? 'Veg' : 'Non-Veg'}
-                        </span>
+            {/* P0.2: Fallback Recipe Notice Banner */}
+            {isFallback && (
+                <div className="bg-amber-950/60 border border-amber-500/60 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200">
+                    <span className="text-base flex-shrink-0">⚠️</span>
+                    <div>
+                        <span className="font-bold text-amber-300">Basic Recipe Template: </span>
+                        <span>{fallbackNotice || "Couldn't generate the specific recipe steps for this dish right now. Here is a basic preparation template."}</span>
                     </div>
                 </div>
             )}
 
-            {!imageUrl && !imageLoading && (
+            {/* Dish Photo */}
+            {imageLoading && <ImagePlaceholder />}
+            {imageData?.imageUrl && !imageLoading && (
+                <div className="space-y-1.5">
+                    <div className="relative rounded-xl overflow-hidden shadow-lg border border-gray-700/60 max-h-56">
+                        <img
+                            src={imageData.imageUrl}
+                            alt={dishName}
+                            className="w-full h-52 sm:h-56 object-cover hover:scale-105 transition-transform duration-500"
+                            onError={() => setImageData(null)}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                        
+                        {/* Floating Title on Image */}
+                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+                            <h2 className="text-xl sm:text-2xl font-extrabold text-white drop-shadow-md">
+                                {dishName}
+                            </h2>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-md ${
+                                isVeg
+                                    ? 'bg-green-950/80 border-green-500 text-green-300'
+                                    : 'bg-red-950/80 border-red-500 text-red-300'
+                            }`}>
+                                <span className={`w-2.5 h-2.5 rounded-full ${isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
+                                {isVeg ? 'Veg' : 'Non-Veg'}
+                            </span>
+                        </div>
+                    </div>
+                    {/* P1.4: Pexels attribution and illustrative image notice */}
+                    <div className="text-[10px] text-gray-400 flex justify-between items-center px-1">
+                        <span className="italic">Illustrative image</span>
+                        {imageData.photographer && (
+                            <span>
+                                Photo by{' '}
+                                <a
+                                    href={imageData.photographerUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline hover:text-gray-200"
+                                >
+                                    {imageData.photographer}
+                                </a>{' '}
+                                on Pexels
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {!imageData?.imageUrl && !imageLoading && (
                 <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
                     <h2 className="text-2xl font-extrabold text-white">{dishName}</h2>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
@@ -108,6 +148,19 @@ export default function RecipeDetailCard({ recipe }) {
                     }`}>
                         <span className={`w-2.5 h-2.5 rounded-full ${isVeg ? 'bg-green-400' : 'bg-red-400'}`} />
                         {isVeg ? 'Veg' : 'Non-Veg'}
+                    </span>
+                </div>
+            )}
+
+            {/* Pantry match indicator */}
+            {ingredientMatch && ingredientMatch.matchedIngredients?.length > 0 && (
+                <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2.5 flex items-center justify-between text-xs text-emerald-200">
+                    <span className="flex items-center gap-1.5 font-medium">
+                        <span>🥗 Matched pantry items:</span>
+                        <span className="text-white font-semibold">{ingredientMatch.matchedIngredients.join(', ')}</span>
+                    </span>
+                    <span className="bg-emerald-900/80 px-2 py-0.5 rounded-full font-bold text-[11px] text-emerald-300 border border-emerald-700">
+                        {ingredientMatch.matchCount} matched
                     </span>
                 </div>
             )}
@@ -195,12 +248,12 @@ export default function RecipeDetailCard({ recipe }) {
             )}
 
             {/* Culinary Comfort & Mood Note */}
-            {(recipe.culinaryComfort || recipe.moodNote || recipe.emotionalTherapy) && (
+            {(culinaryComfort || recipe.moodNote) && (
                 <div className="bg-blue-950/30 border border-blue-500/40 rounded-xl p-3 flex items-start gap-2.5 text-xs text-blue-200">
                     <span className="text-base flex-shrink-0">🌿</span>
                     <div>
                         <span className="font-bold text-blue-300">Culinary Comfort: </span>
-                        <span>{recipe.culinaryComfort || recipe.moodNote || recipe.emotionalTherapy}</span>
+                        <span>{culinaryComfort || recipe.moodNote}</span>
                     </div>
                 </div>
             )}

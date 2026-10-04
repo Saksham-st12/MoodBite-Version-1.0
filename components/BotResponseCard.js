@@ -1,6 +1,6 @@
-// components/BotResponseCard.js (Updated for WP2.1 - Honest AI Match Rating)
+// components/BotResponseCard.js (Updated: P1.1 removed anchored AI match rating, P1.4 added Pexels attribution)
 import { useState, useEffect } from 'react';
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const ImagePlaceholder = () => (
     <div className="w-full h-48 bg-gray-800 rounded-lg flex items-center justify-center">
@@ -13,44 +13,68 @@ export default function BotResponseCard({ response }) {
         predictedMood, 
         suggestedFood, 
         reason, 
-        llmSelfRating, 
-        confidenceScore, 
         source, 
         dietaryType 
     } = response;
 
     const [isExpanded, setIsExpanded] = useState(false);
-    const [imageUrl, setImageUrl] = useState(null);
+    const [imageData, setImageData] = useState(null);
     const [imageLoading, setImageLoading] = useState(true);
 
-    const hasRating = typeof llmSelfRating === 'number' && llmSelfRating > 0;
-    const targetScore = hasRating ? (llmSelfRating < 2 ? llmSelfRating * 100 : llmSelfRating) : 0;
-
-    const count = useMotionValue(0);
-    const rounded = useTransform(count, latest => Math.round(latest));
-
     useEffect(() => {
-        const controls = hasRating ? animate(count, targetScore, { duration: 1.5, ease: "easeOut" }) : null;
         if (suggestedFood && !suggestedFood.toLowerCase().includes("failed") && !suggestedFood.toLowerCase().includes("error")) {
             setImageLoading(true);
             fetch(`/api/generateFoodImage?foodName=${encodeURIComponent(suggestedFood)}`)
                 .then(res => res.ok ? res.json() : Promise.reject("Image not found"))
-                .then(data => data.imageUrl ? setImageUrl(data.imageUrl) : setImageLoading(false))
-                .catch(err => { console.error(err); setImageLoading(false); });
+                .then(data => {
+                    if (data.imageUrl) {
+                        setImageData({
+                            imageUrl: data.imageUrl,
+                            photographer: data.photographer || 'Pexels Contributor',
+                            photographerUrl: data.photographerUrl || 'https://www.pexels.com'
+                        });
+                    }
+                    setImageLoading(false);
+                })
+                .catch(err => {
+                    console.error("Image fetch error:", err);
+                    setImageLoading(false);
+                });
         } else {
             setImageLoading(false);
         }
-        return () => controls?.stop();
-    }, [suggestedFood, count, targetScore, hasRating]);
+    }, [suggestedFood]);
 
     return (
         <div className="bg-gray-700 rounded-lg p-4 w-full max-w-lg space-y-4 shadow-lg">
             {imageLoading && <ImagePlaceholder />}
-            {imageUrl && (
-                <img src={imageUrl} alt={suggestedFood} className="w-full h-48 object-cover rounded-lg"
-                    onLoad={() => setImageLoading(false)}
-                    onError={() => { setImageLoading(false); setImageUrl(null); }}
-                />
+            {imageData?.imageUrl && (
+                <div className="space-y-1">
+                    <img 
+                        src={imageData.imageUrl} 
+                        alt={suggestedFood} 
+                        className="w-full h-48 object-cover rounded-lg"
+                        onLoad={() => setImageLoading(false)}
+                        onError={() => { setImageLoading(false); setImageData(null); }}
+                    />
+                    <div className="text-[10px] text-gray-400 flex justify-between items-center px-1">
+                        <span className="italic">Illustrative image</span>
+                        {imageData.photographer && (
+                            <span>
+                                Photo by{' '}
+                                <a 
+                                    href={imageData.photographerUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="underline hover:text-gray-200"
+                                >
+                                    {imageData.photographer}
+                                </a>{' '}
+                                on Pexels
+                            </span>
+                        )}
+                    </div>
+                </div>
             )}
             <div>
                 <p className="text-xs text-gray-400">Detected Mood</p>
@@ -79,18 +103,9 @@ export default function BotResponseCard({ response }) {
                     </div>
                     <p className="text-2xl font-bold">{suggestedFood}</p>
                 </div>
-                
-                {/* AI Match Rating: Rendered ONLY when honest rating is provided by model */}
-                {hasRating && (
-                    <div className="text-center bg-gray-900/60 p-2.5 rounded-lg border border-gray-700/60 min-w-[120px]">
-                         <p className="text-[11px] text-gray-400 font-medium">AI Match Rating</p>
-                         <motion.p className="text-2xl font-mono font-bold text-green-400">{rounded}%</motion.p>
-                         <p className="text-[9px] text-gray-500">AI-generated indicator</p>
-                    </div>
-                )}
             </div>
             <div>
-                <p className="text-xs text-gray-400 mb-1">Reason</p>
+                <p className="text-xs text-gray-400 mb-1">Culinary Rationale</p>
                 <motion.p className="text-sm text-gray-300 overflow-hidden" animate={{ height: isExpanded ? 'auto' : '40px' }} >{reason}</motion.p>
                 <button onClick={() => setIsExpanded(!isExpanded)} className="text-xs text-blue-400 hover:underline mt-1">{isExpanded ? 'Show Less' : 'Show More...'}</button>
             </div>
