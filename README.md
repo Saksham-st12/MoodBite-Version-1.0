@@ -131,6 +131,8 @@ Create a `.env.local` file in the project root based on `.env.example`:
 | `HUGGING_FACE_API_TOKEN` | **Yes** | RoBERTa GoEmotions Classifier | [Hugging Face Tokens](https://huggingface.co/settings/tokens) |
 | `OPENROUTER_API_KEY` | Optional | Claude 3 Haiku Fallback Provider | [OpenRouter Keys](https://openrouter.ai/keys) |
 | `PEXELS_API_KEY` | **Yes** | High-resolution Food Photography | [Pexels Developer API](https://www.pexels.com/api/) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Optional | Supabase Project URL for Authentication & DB | [Supabase](https://supabase.com) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | Supabase Anon Public Key for Client Auth | [Supabase](https://supabase.com) |
 | `RATE_LIMIT_WINDOW_MS` | Optional | Rate limit sliding window (default: 60000ms) | Internal config |
 | `RATE_LIMIT_MAX_REQUESTS` | Optional | Max requests per IP window (default: 20) | Internal config |
 
@@ -201,7 +203,7 @@ Runs an isolated evaluation of the RoBERTa GoEmotions classifier against 52 stan
 
 - [x] **WP1: Audit & v1.0 Hardening** (Schema validation, input sanitization, rate limiting, timeouts, .env.example, README)
 - [x] **WP2: Fix Confidence-Score Handling** (Rename to `llmSelfRating`, deterministic hierarchy, keyword dietary filter)
-- [ ] **WP3: Authentication** (Auth.js / Supabase Auth with Google & Email/Password, retaining guest mode)
+- [x] **WP3: Authentication** (Supabase Auth with Email/Password & Google OAuth, retaining guest mode)
 - [ ] **WP4: Relational Database** (PostgreSQL / Supabase with `users`, `user_preferences`, `recommendation_history`, `recipe_selections`, `feedback`)
 - [ ] **WP5: User Dashboard & Feedback UI** (Profile preferences, history viewing, recommendation rating)
 - [ ] **WP6: Automated Evaluation & CI** (Dietary compliance rate, ingredient match rate, GitHub Actions)

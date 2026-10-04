@@ -8,6 +8,8 @@ import TypingIndicator from '../components/TypingIndicator';
 import InputOverlay from '../components/InputOverlay';
 import Textarea from 'react-textarea-autosize';
 import Loader from '../components/Loader';
+import Link from 'next/link';
+import { useAuth } from '../context/AuthContext';
 
 export default function HomePage() {
     const [isAppLoading, setIsAppLoading] = useState(true);
@@ -23,6 +25,7 @@ export default function HomePage() {
     const recognitionRef = useRef(null);
     const voices = useRef([]);
     const chatEndRef = useRef(null);
+    const { user, signOut } = useAuth();
 
     useEffect(() => {
         const timer = setTimeout(() => { setIsAppLoading(false); }, 3800);
@@ -250,9 +253,40 @@ export default function HomePage() {
         <div className="w-full h-screen bg-black flex flex-col text-white" onClick={handleInterrupt}>
             <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] -z-10"></div>
             
-            <header className="relative z-20 p-4 border-b border-gray-700/50 text-center backdrop-blur-sm flex-shrink-0">
-                <h1 className="text-2xl font-bold tracking-wider">MOODBITE AI</h1>
-                <p className="text-xs text-gray-400 mt-1">Final Year Project By Saksham</p>
+            <header className="relative z-20 px-4 py-3 border-b border-gray-700/50 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
+                <div className="w-20 hidden sm:block"></div>
+                <div className="text-center">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-wider">MOODBITE AI</h1>
+                    <p className="text-[11px] text-gray-400">Final Year Project By Saksham</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    {user ? (
+                        <div className="flex items-center gap-2 bg-gray-900/90 border border-gray-700/80 px-2.5 py-1 rounded-full text-xs shadow-md">
+                            <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-[11px]">
+                                {user.email?.charAt(0).toUpperCase() || 'U'}
+                            </span>
+                            <span className="hidden md:inline text-gray-300 max-w-[120px] truncate text-[11px]">
+                                {user.user_metadata?.full_name || user.email}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={signOut}
+                                className="text-gray-400 hover:text-red-400 text-[11px] ml-1 transition"
+                                title="Sign out"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    ) : (
+                        <Link
+                            href="/login"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white transition shadow-sm shadow-purple-600/30"
+                        >
+                            <span>👤</span>
+                            <span>Sign In</span>
+                        </Link>
+                    )}
+                </div>
             </header>
             
             {/* Top-Right Veg / Non-Veg Switch */}
