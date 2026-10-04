@@ -254,6 +254,7 @@ Respond ONLY with a valid JSON object matching this exact schema:
             validatedRecipe.ingredientMatch = null;
         }
         validatedRecipe.authenticatedUserId = authUser?.id || null;
+        validatedRecipe.isAuthenticated = Boolean(authUser);
 
         return res.status(200).json(validatedRecipe);
 

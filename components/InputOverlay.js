@@ -2,18 +2,31 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 
+const MAX_INGREDIENTS = 25;      // matches the server limit
+const MAX_INGREDIENT_LENGTH = 50; // matches the server limit
+
+// label = what the user sees, values = clean ingredient names sent to the API
+// (clean names match recipe text far better than "Potato (Aloo)"); nonVeg items are hidden in Veg mode
 const QUICK_SUGGESTIONS = [
-    'Paneer', 'Potato (Aloo)', 'Onion', 'Tomato', 'Capsicum',
-    'Garlic & Ginger', 'Rice', 'Dal / Lentils', 'Chicken', 'Egg',
-    'Spinach (Palak)', 'Green Peas'
+    { label: 'Paneer', values: ['paneer'] },
+    { label: 'Potato (Aloo)', values: ['potato'] },
+    { label: 'Onion', values: ['onion'] },
+    { label: 'Tomato', values: ['tomato'] },
+    { label: 'Capsicum', values: ['capsicum'] },
+    { label: 'Garlic & Ginger', values: ['garlic', 'ginger'] },
+    { label: 'Rice', values: ['rice'] },
+    { label: 'Dal / Lentils', values: ['lentils'] },
+    { label: 'Chicken', values: ['chicken'], nonVeg: true },
+    { label: 'Egg', values: ['egg'], nonVeg: true },
+    { label: 'Spinach (Palak)', values: ['spinach'] },
+    { label: 'Green Peas', values: ['green peas'] }
 ];
 
 export default function InputOverlay({ initialIngredients = [], dietaryPreference = 'veg', onSubmit, onClose }) {
     const [ingredientList, setIngredientList] = useState([]);
     const [inputValue, setInputValue] = useState('');
-
-    const displayedSuggestions = dietaryPreference === 'veg'
-        ? QUICK_SUGGESTIONS.filter(item => !['Chicken', 'Egg'].includes(item))
+    const visibleSuggestions = dietaryPreference === 'veg'
+        ? QUICK_SUGGESTIONS.filter(item => !item.nonVeg)
         : QUICK_SUGGESTIONS;
 
     useEffect(() => {
@@ -26,10 +39,10 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
         if (!text || !text.trim()) return ingredientList;
         const newItems = text
             .split(/[\n,]+/)
-            .map(item => item.trim().toLowerCase().slice(0, 50))
+            .map(item => item.trim().toLowerCase().slice(0, MAX_INGREDIENT_LENGTH))
             .filter(item => item.length > 0);
 
-        const updated = [...new Set([...ingredientList, ...newItems])].slice(0, 25);
+        const updated = [...new Set([...ingredientList, ...newItems])].slice(0, MAX_INGREDIENTS);
         setIngredientList(updated);
         return updated;
     };
@@ -37,10 +50,6 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
     const handleAddClick = (e) => {
         if (e) e.preventDefault();
         if (inputValue.trim()) {
-            if (ingredientList.length >= 25) {
-                alert("Maximum 25 ingredients allowed.");
-                return;
-            }
             addIngredientsFromText(inputValue);
             setInputValue('');
         }
@@ -51,11 +60,7 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
     };
 
     const handleQuickAdd = (item) => {
-        if (ingredientList.length >= 25) return;
-        const normalized = item.toLowerCase().slice(0, 50);
-        if (!ingredientList.includes(normalized)) {
-            setIngredientList(prev => [...prev, normalized].slice(0, 25));
-        }
+        setIngredientList(prev => [...new Set([...prev, ...item.values])].slice(0, MAX_INGREDIENTS));
     };
 
     const handleSave = (triggerSearch = false) => {
@@ -111,7 +116,7 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
                     <div className="bg-gray-950/80 border border-gray-800 rounded-xl p-3 min-h-[70px] max-h-36 overflow-y-auto flex flex-wrap gap-1.5 items-start content-start">
                         {ingredientList.length === 0 ? (
                             <p className="text-xs text-gray-500 italic m-auto py-2">
-                                No ingredients added yet. Type below or tap quick suggestions.
+                                No ingredients added yet. Type below or tap quick suggestions (up to 25).
                             </p>
                         ) : (
                             ingredientList.map((ing, idx) => (
@@ -145,8 +150,8 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
                                     handleAddClick();
                                 }
                             }}
+                            maxLength={MAX_INGREDIENT_LENGTH * 5}
                             placeholder="e.g. paneer, tomato, capsicum, cumin (press Enter)"
-                            maxLength={50}
                             className="flex-1 px-3.5 py-2.5 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
                             autoFocus
                         />
@@ -165,11 +170,11 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
                             Quick Add Pantry Staples:
                         </span>
                         <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                            {displayedSuggestions.map((item) => {
-                                const isAdded = ingredientList.includes(item.toLowerCase());
+                            {visibleSuggestions.map((item) => {
+                                const isAdded = item.values.every(v => ingredientList.includes(v));
                                 return (
                                     <button
-                                        key={item}
+                                        key={item.label}
                                         type="button"
                                         onClick={() => handleQuickAdd(item)}
                                         disabled={isAdded}
@@ -179,7 +184,7 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
                                                 : 'bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300 hover:text-white hover:border-purple-500/50'
                                         }`}
                                     >
-                                        {isAdded ? `✓ ${item}` : `+ ${item}`}
+                                        {isAdded ? `✓ ${item.label}` : `+ ${item.label}`}
                                     </button>
                                 );
                             })}
@@ -213,7 +218,7 @@ export default function InputOverlay({ initialIngredients = [], dietaryPreferenc
                                 onClick={() => handleSave(false)}
                                 className="px-4 py-2 text-xs font-semibold rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
                             >
-                                Save ({ingredientList.length})
+                                Save ({ingredientList.length}/{MAX_INGREDIENTS})
                             </button>
                             {ingredientList.length > 0 && (
                                 <button

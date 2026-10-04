@@ -32,10 +32,29 @@ async function postJson(url, body, token = null) {
             'Request failed';
         const err = new Error(errorText);
         err.status = res.status;
-        err.retryAfter = Number(res.headers.get('Retry-After')) || null;
+        err.details = data.errors || data.details || [];
+        err.retryAfter = Number(res.headers.get('Retry-After')) || data.retryAfter || null;
         throw err;
     }
     return data;
+}
+
+// Say what went wrong and provide actionable user feedback
+function friendlyError(err) {
+    const status = err?.status;
+    if (status === 429) {
+        const wait = err.retryAfter ? `${err.retryAfter} seconds` : 'a minute';
+        return `Too many requests. Wait ${wait}, then try again.`;
+    }
+    if (status === 400) {
+        const detail = Array.isArray(err.details) && err.details.length ? ` ${err.details[0]}` : (err.message ? ` ${err.message}` : '');
+        return `The request was not accepted.${detail} Shorten your message or remove some ingredients, then try again.`;
+    }
+    if (status === 413) return 'This photo is larger than 5 MB. Choose a smaller photo.';
+    if (status === 415) return 'This file type is not supported. Use a JPEG, PNG, WEBP or GIF photo.';
+    if (status === 504) return 'The request timed out. Try again, or type the ingredients instead.';
+    if (status >= 500) return 'The service is not responding. Try again in a moment.';
+    return err?.message || 'Could not reach MoodBite. Check your internet connection and try again.';
 }
 
 /**
@@ -292,32 +311,20 @@ export default function HomePage() {
             }
         } catch (error) {
             console.error("suggestFood API error:", error);
-            let friendlyError = "Sorry, the AI assistant encountered an error. Please try again.";
-            let errorTitle = "Request Notice";
-
-            if (error.status === 429) {
-                const waitSecs = error.retryAfter ? `${error.retryAfter} seconds` : 'a few moments';
-                friendlyError = `Rate limit reached. Please wait ${waitSecs} before requesting another recommendation.`;
-                errorTitle = "Rate Limit Notice";
-            } else if (error.status === 400) {
-                friendlyError = `Invalid request: ${error.message}`;
-            } else if (error.status === 504) {
-                friendlyError = "The AI service timed out. Please try again shortly.";
-            } else if (error.message) {
-                friendlyError = error.message;
-            }
+            const errReason = friendlyError(error);
+            const errorTitle = error.status === 429 ? "Rate Limit Notice" : "Request Notice";
 
             const errorContent = {
                 type: 'error',
                 title: errorTitle,
-                message: friendlyError,
+                message: errReason,
                 predictedMood: "Notice",
                 suggestedFood: "Request Notice",
-                reason: friendlyError
+                reason: errReason
             };
             const errorMessage = { role: 'bot', content: errorContent };
             setMessages(prev => [...prev, errorMessage]);
-            speak(friendlyError);
+            speak(errReason);
         } finally {
             setIsLoading(false);
         }
@@ -343,10 +350,21 @@ export default function HomePage() {
             speak(`Here is the complete recipe and cooking guide for ${data.dishName}.`);
         } catch (error) {
             console.error("Error fetching recipe details:", error);
-            let noticeText = `Could not generate the specific culinary recipe for "${recipe.name}" right now. Here is a basic preparation template.`;
-            if (error.status === 429) {
-                noticeText = "Rate limit reached. Serving a standard preparation template for this dish.";
+            // Input and rate-limit problems are the user's to fix: show the reason instead of a template recipe
+            if (error.status === 429 || error.status === 400) {
+                const errReason = friendlyError(error);
+                const errorContent = {
+                    type: 'error',
+                    title: error.status === 429 ? "Rate Limit Reached" : "Request Notice",
+                    message: errReason,
+                    reason: errReason
+                };
+                setMessages(prev => [...prev, { role: 'bot', content: errorContent }]);
+                speak(errReason);
+                return;
             }
+
+            let noticeText = `Could not generate the specific culinary recipe for "${recipe.name}" right now. Here is a basic preparation template.`;
 
             const fallbackMessage = {
                 role: 'bot',

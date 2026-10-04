@@ -43,3 +43,5 @@ next-env.d.ts
 
 # local notes / scratch
 moodbite_code.txt
+/scripts/results/
+

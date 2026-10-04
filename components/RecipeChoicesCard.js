@@ -1,4 +1,4 @@
-// components/RecipeChoicesCard.js
+// components/RecipeChoicesCard.js (WP2: no self-reported rating; shows detected emotion and food mood separately)
 import React from 'react';
 import { motion } from 'framer-motion';
 
@@ -12,17 +12,19 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
         summary, 
         dietaryType, 
         hasUserIngredients,
+        ignoredIngredients = [],
         source 
     } = response;
+
+    const foodMood = culinaryMood || predictedMood || 'current';
+    const showEmotion = detectedEmotion && detectedEmotion !== foodMood;
 
     // Determine whether user supplied ingredients
     const hasIngredients = Boolean(hasUserIngredients) || choices.some(c => typeof c.ingredientMatchCount === 'number' && c.ingredientMatchCount > 0);
 
-    const effectiveFoodMood = culinaryMood || predictedMood || 'current';
-
     const defaultSummary = hasIngredients
         ? `Here are ${choices.length || 4} great recipes tailored to your ingredients and mood:`
-        : `Here are ${choices.length || 4} comforting recipes tailored to your ${effectiveFoodMood} mood:`;
+        : `Here are ${choices.length || 4} comforting recipes tailored to your ${foodMood} mood:`;
 
     const displaySummary = (!hasIngredients && summary)
         ? summary
@@ -33,30 +35,23 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
 
     return (
         <div className="bg-gray-800/90 border border-gray-700/80 rounded-2xl p-4 sm:p-5 w-full max-w-2xl space-y-4 shadow-xl backdrop-blur-md">
-            {/* Header: Detected Emotion & Food Mood */}
+            {/* Header: detected emotion, food mood and summary */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-700/60">
                 <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                        {detectedEmotion ? (
+                        {showEmotion && (
                             <>
-                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Detected Emotion</span>
+                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Detected emotion</span>
                                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30 capitalize">
                                     {detectedEmotion}{emotionScore ? ` (${Math.round(emotionScore * 100)}%)` : ''}
                                 </span>
-                                <span className="text-xs text-gray-400 font-bold">→</span>
-                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Food Mood</span>
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
-                                    {culinaryMood || predictedMood}
-                                </span>
-                            </>
-                        ) : (
-                            <>
-                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Food Mood</span>
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
-                                    {culinaryMood || predictedMood}
-                                </span>
+                                <span className="text-xs text-gray-500">→</span>
                             </>
                         )}
+                        <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Food mood</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
+                            {foodMood}
+                        </span>
                         {source && (
                             <span className="text-[10px] px-2 py-0.5 rounded bg-gray-900/60 text-gray-400 border border-gray-700/60">
                                 {source}
@@ -66,6 +61,11 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                     <p className="text-sm text-gray-200 mt-1 font-medium">
                         {displaySummary}
                     </p>
+                    {ignoredIngredients.length > 0 && (
+                        <p className="text-[11px] text-amber-300 mt-1">
+                            Skipped in Veg mode: {ignoredIngredients.join(', ')}. Switch to Non-Veg to use them.
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -83,10 +83,10 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                         >
                             <div className="flex-1 space-y-1.5">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    {/* Veg / Non-Veg indicator */}
+                                    {/* Veg / Non-Veg indicator (visual convention only; not a certification) */}
                                     <span className={`w-3.5 h-3.5 border-2 flex items-center justify-center rounded-[2px] p-[1px] bg-black/60 ${
                                         isVeg ? 'border-green-500' : 'border-red-500'
-                                    }`} title={isVeg ? "Vegetarian indicator" : "Non-Vegetarian indicator"}>
+                                    }`} title={isVeg ? "Vegetarian" : "Non-Vegetarian"}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${isVeg ? 'bg-green-500' : 'bg-red-500'}`} />
                                     </span>
 
@@ -106,7 +106,7 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                                         </span>
                                     )}
 
-                                    {/* Deterministic Ingredient Match Indicator */}
+                                    {/* WP2.3: Deterministic Ingredient Match Indicator */}
                                     {typeof choice.ingredientMatchCount === 'number' && choice.ingredientMatchCount > 0 && (
                                         <span className="text-[11px] px-2 py-0.5 rounded-md bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 flex items-center gap-1">
                                             🎯 Matched {choice.ingredientMatchCount} item{choice.ingredientMatchCount > 1 ? 's' : ''}

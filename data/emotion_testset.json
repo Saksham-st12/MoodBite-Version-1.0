@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "description": "Starter test set for the GoEmotions classifier used by MoodBite, labelled at the Ekman level (6 basic emotions + neutral).",
+    "annotation": "Written and labelled by the project author (single annotator). Before citing results in the report, have at least one more person label the same sentences independently and report agreement (for example Cohen's kappa); drop or relabel sentences where annotators disagree.",
+    "classes": ["anger", "disgust", "fear", "joy", "sadness", "surprise", "neutral"],
+    "perClass": 8
+  },
+  "items": [
+    { "text": "I am furious that my order was cancelled again without any notice.", "ekman": "anger" },
+    { "text": "This constant noise from the neighbours is making me really angry.", "ekman": "anger" },
+    { "text": "I'm so irritated with my roommate for eating my food.", "ekman": "anger" },
+    { "text": "My boss blamed me for his mistake and I'm livid.", "ekman": "anger" },
+    { "text": "I'm fed up with this slow internet, it's so annoying.", "ekman": "anger" },
+    { "text": "How dare they cancel my exam at the last minute, I'm outraged.", "ekman": "anger" },
+    { "text": "I can't stand how rude the waiter was to us today.", "ekman": "anger" },
+    { "text": "I am really annoyed that the train was late again.", "ekman": "anger" },
+
+    { "text": "That smell from the garbage is absolutely disgusting.", "ekman": "disgust" },
+    { "text": "I found a hair in my soup and I feel sick looking at it.", "ekman": "disgust" },
+    { "text": "The kitchen at that restaurant was filthy, it's revolting.", "ekman": "disgust" },
+    { "text": "I can't even look at that rotten fruit, it's gross.", "ekman": "disgust" },
+    { "text": "The leftover milk had gone bad and the stench was nauseating.", "ekman": "disgust" },
+    { "text": "What a repulsive way to treat animals, it makes me sick.", "ekman": "disgust" },
+    { "text": "That greasy food court makes me want to gag.", "ekman": "disgust" },
+    { "text": "Eww, there's mould all over the bread.", "ekman": "disgust" },
+
+    { "text": "I'm terrified about my results coming out tomorrow.", "ekman": "fear" },
+    { "text": "I feel really anxious about the interview this afternoon.", "ekman": "fear" },
+    { "text": "I'm scared to walk home alone in the dark.", "ekman": "fear" },
+    { "text": "I'm so nervous about presenting my project in front of everyone.", "ekman": "fear" },
+    { "text": "I'm worried sick about my mother's surgery.", "ekman": "fear" },
+    { "text": "The thunderstorm outside is frightening me.", "ekman": "fear" },
+    { "text": "I get panicky whenever I have to speak in public.", "ekman": "fear" },
+    { "text": "I'm afraid I will fail the exam and let everyone down.", "ekman": "fear" },
+
+    { "text": "I'm so happy, I just got my dream job!", "ekman": "joy" },
+    { "text": "We won the match and I'm thrilled!", "ekman": "joy" },
+    { "text": "I'm so grateful for my family's support, I love them so much.", "ekman": "joy" },
+    { "text": "What a wonderful day, everything is going perfectly.", "ekman": "joy" },
+    { "text": "I'm excited for the festival this weekend!", "ekman": "joy" },
+    { "text": "I passed my exam with distinction and I feel proud.", "ekman": "joy" },
+    { "text": "Spending the evening with friends made me really cheerful.", "ekman": "joy" },
+    { "text": "I love this song, it makes me smile every time.", "ekman": "joy" },
+
+    { "text": "I feel very lonely and down today.", "ekman": "sadness" },
+    { "text": "I miss my grandmother so much, I can't stop crying.", "ekman": "sadness" },
+    { "text": "I'm heartbroken after the breakup.", "ekman": "sadness" },
+    { "text": "I feel hopeless and empty since I lost my job.", "ekman": "sadness" },
+    { "text": "Everything feels grey and I just want to be alone.", "ekman": "sadness" },
+    { "text": "I'm so disappointed that my trip got cancelled.", "ekman": "sadness" },
+    { "text": "I feel miserable after failing the entrance test.", "ekman": "sadness" },
+    { "text": "I'm grieving the loss of my pet.", "ekman": "sadness" },
+
+    { "text": "Wow, I did not expect that at all!", "ekman": "surprise" },
+    { "text": "I can't believe they threw me a surprise party!", "ekman": "surprise" },
+    { "text": "Whoa, I just found out my friend is moving abroad, I'm shocked.", "ekman": "surprise" },
+    { "text": "That was unexpected, I had no idea the shop was closed.", "ekman": "surprise" },
+    { "text": "I'm amazed that the parcel arrived a week early.", "ekman": "surprise" },
+    { "text": "Wait, what? You got married last month?", "ekman": "surprise" },
+    { "text": "I'm stunned, I never thought I would win the lottery.", "ekman": "surprise" },
+    { "text": "Holy cow, I completely forgot today was a holiday!", "ekman": "surprise" },
+
+    { "text": "I am having dinner at 8 pm.", "ekman": "neutral" },
+    { "text": "The packet contains 500 grams of flour.", "ekman": "neutral" },
+    { "text": "The shop is located on the second floor.", "ekman": "neutral" },
+    { "text": "I need to buy some milk and eggs from the store.", "ekman": "neutral" },
+    { "text": "The temperature today is 24 degrees.", "ekman": "neutral" },
+    { "text": "I woke up at seven in the morning.", "ekman": "neutral" },
+    { "text": "The recipe asks for two cups of water.", "ekman": "neutral" },
+    { "text": "The bus arrived at the stop on time.", "ekman": "neutral" }
+  ]
+}

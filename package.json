@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node scripts/smokeTest.js"
+    "test": "node scripts/smokeTest.js",
+    "eval:emotion": "node scripts/evaluate_emotion.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
