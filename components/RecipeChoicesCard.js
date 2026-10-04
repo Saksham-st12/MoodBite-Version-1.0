@@ -5,6 +5,9 @@ import { motion } from 'framer-motion';
 export default function RecipeChoicesCard({ response, onSelectRecipe }) {
     const { 
         predictedMood, 
+        culinaryMood,
+        detectedEmotion,
+        emotionScore,
         choices = [], 
         summary, 
         dietaryType, 
@@ -15,9 +18,11 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
     // Determine whether user supplied ingredients
     const hasIngredients = Boolean(hasUserIngredients) || choices.some(c => typeof c.ingredientMatchCount === 'number' && c.ingredientMatchCount > 0);
 
+    const effectiveFoodMood = culinaryMood || predictedMood || 'current';
+
     const defaultSummary = hasIngredients
         ? `Here are ${choices.length || 4} great recipes tailored to your ingredients and mood:`
-        : `Here are ${choices.length || 4} comforting recipes tailored to your ${predictedMood || 'current'} mood:`;
+        : `Here are ${choices.length || 4} comforting recipes tailored to your ${effectiveFoodMood} mood:`;
 
     const displaySummary = (!hasIngredients && summary)
         ? summary
@@ -28,14 +33,30 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
 
     return (
         <div className="bg-gray-800/90 border border-gray-700/80 rounded-2xl p-4 sm:p-5 w-full max-w-2xl space-y-4 shadow-xl backdrop-blur-md">
-            {/* Header: Detected Mood & Summary */}
+            {/* Header: Detected Emotion & Food Mood */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-700/60">
                 <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Detected Mood</span>
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
-                            {predictedMood}
-                        </span>
+                        {detectedEmotion ? (
+                            <>
+                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Detected Emotion</span>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30 capitalize">
+                                    {detectedEmotion}{emotionScore ? ` (${Math.round(emotionScore * 100)}%)` : ''}
+                                </span>
+                                <span className="text-xs text-gray-400 font-bold">→</span>
+                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Food Mood</span>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
+                                    {culinaryMood || predictedMood}
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">Food Mood</span>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
+                                    {culinaryMood || predictedMood}
+                                </span>
+                            </>
+                        )}
                         {source && (
                             <span className="text-[10px] px-2 py-0.5 rounded bg-gray-900/60 text-gray-400 border border-gray-700/60">
                                 {source}

@@ -8,9 +8,13 @@ const QUICK_SUGGESTIONS = [
     'Spinach (Palak)', 'Green Peas'
 ];
 
-export default function InputOverlay({ initialIngredients = [], onSubmit, onClose }) {
+export default function InputOverlay({ initialIngredients = [], dietaryPreference = 'veg', onSubmit, onClose }) {
     const [ingredientList, setIngredientList] = useState([]);
     const [inputValue, setInputValue] = useState('');
+
+    const displayedSuggestions = dietaryPreference === 'veg'
+        ? QUICK_SUGGESTIONS.filter(item => !['Chicken', 'Egg'].includes(item))
+        : QUICK_SUGGESTIONS;
 
     useEffect(() => {
         if (Array.isArray(initialIngredients)) {
@@ -161,7 +165,7 @@ export default function InputOverlay({ initialIngredients = [], onSubmit, onClos
                             Quick Add Pantry Staples:
                         </span>
                         <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                            {QUICK_SUGGESTIONS.map((item) => {
+                            {displayedSuggestions.map((item) => {
                                 const isAdded = ingredientList.includes(item.toLowerCase());
                                 return (
                                     <button

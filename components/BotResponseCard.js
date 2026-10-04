@@ -11,6 +11,9 @@ const ImagePlaceholder = () => (
 export default function BotResponseCard({ response }) {
     const { 
         predictedMood, 
+        culinaryMood,
+        detectedEmotion,
+        emotionScore,
         suggestedFood, 
         reason, 
         source, 
@@ -77,8 +80,28 @@ export default function BotResponseCard({ response }) {
                 </div>
             )}
             <div>
-                <p className="text-xs text-gray-400">Detected Mood</p>
-                <p className="text-lg font-semibold text-yellow-400 capitalize">{predictedMood}</p>
+                {detectedEmotion ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div>
+                            <p className="text-[10px] uppercase text-gray-400 font-semibold">Detected Emotion</p>
+                            <p className="text-base font-semibold text-blue-400 capitalize">
+                                {detectedEmotion}{emotionScore ? ` (${Math.round(emotionScore * 100)}%)` : ''}
+                            </p>
+                        </div>
+                        <span className="text-gray-500 font-bold text-sm pt-2">→</span>
+                        <div>
+                            <p className="text-[10px] uppercase text-gray-400 font-semibold">Food Mood</p>
+                            <p className="text-base font-semibold text-yellow-400 capitalize">
+                                {culinaryMood || predictedMood}
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <p className="text-xs text-gray-400 font-medium">Food Mood</p>
+                        <p className="text-lg font-semibold text-yellow-400 capitalize">{culinaryMood || predictedMood}</p>
+                    </div>
+                )}
             </div>
             <div className="bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="text-center sm:text-left">

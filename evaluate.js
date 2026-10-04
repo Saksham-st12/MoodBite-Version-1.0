@@ -13,7 +13,7 @@ require('dotenv').config();
 const { getMood, getEkmanGroup, EKMAN_MAPPING } = require('./lib/emotion');
 
 const BENCHMARK_DATASET = [
-    // --- JOY (joy, excitement, gratitude, love, optimism, relief, pride, admiration, amusement, approval, caring) ---
+    // --- JOY (joy, excitement, gratitude, love, optimism, relief, pride, admiration, amusement, approval, caring, desire) ---
     { text: "I'm so thrilled, our team finally won the championship!", true_emotion: "excitement", true_ekman: "joy" },
     { text: "I really appreciate all the hard work you did to help me today.", true_emotion: "gratitude", true_ekman: "joy" },
     { text: "This dessert is so delicious, I absolutely love it!", true_emotion: "love", true_ekman: "joy" },
@@ -25,6 +25,7 @@ const BENCHMARK_DATASET = [
     { text: "That stand-up comedian had me laughing non-stop, hilarious!", true_emotion: "amusement", true_ekman: "joy" },
     { text: "I agree with your suggestion, that sounds like a great plan.", true_emotion: "approval", true_ekman: "joy" },
     { text: "Please take care of yourself and get some warm rest.", true_emotion: "caring", true_ekman: "joy" },
+    { text: "I crave some hot crispy jalebis right now, I want them so badly!", true_emotion: "desire", true_ekman: "joy" },
     { text: "I just got promoted at work and I could not be happier!", true_emotion: "joy", true_ekman: "joy" },
     { text: "Thank you so much for always supporting me through tough times.", true_emotion: "gratitude", true_ekman: "joy" },
     { text: "We are so hyped for our vacation to Goa this weekend!", true_emotion: "excitement", true_ekman: "joy" },

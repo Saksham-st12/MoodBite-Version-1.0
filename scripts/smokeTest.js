@@ -48,6 +48,8 @@ async function runTests() {
         assert(data.source !== 'Deterministic Safe Fallback', `AI Model active (source: ${data.source}), not fallback`);
         assert(Array.isArray(data.choices) && data.choices.length >= 4, `Returns 4-5 choices (received ${data.choices?.length})`);
         assert(data.choices.every(c => c.dietaryType === 'veg'), 'All suggested choices respect vegetarian preference');
+        assert(typeof data.culinaryMood === 'string' && data.culinaryMood.length > 0, `Returns valid culinaryMood (${data.culinaryMood})`);
+        assert(typeof data.moodSource === 'string', `Returns identified moodSource (${data.moodSource})`);
     } catch (err) {
         assert(false, `Test 2 threw network/parse error: ${err.message}`);
     }
@@ -160,9 +162,64 @@ async function runTests() {
         const data = await res.json();
         assert(res.status === 200, 'getRecipeDetails returns HTTP 200 for Aloo Gobi');
         assert(typeof data.isFallback === 'boolean', 'Returns explicit isFallback boolean');
-        assert(typeof data.ingredientMatch === 'object' && typeof data.ingredientMatch.matchCount === 'number', 'Returns calculated ingredientMatch statistics object');
+        assert(typeof data.ingredientMatch === 'object' && typeof data.ingredientMatch?.matchCount === 'number', 'Returns calculated ingredientMatch statistics object');
     } catch (err) {
         assert(false, `Test 9 threw error: ${err.message}`);
+    }
+
+    // Test 10: Deterministic Non-Veg Mode Labeling (P0.4)
+    try {
+        const res = await fetch(`${BASE_URL}/api/suggestFood`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: 'Suggest dinner tonight',
+                dietaryPreference: 'non-veg'
+            })
+        });
+        const data = await res.json();
+        assert(res.status === 200, 'Non-veg suggestion returns HTTP 200');
+        assert(data.dietaryType === 'non-veg', 'Overall suggestion dietaryType is non-veg');
+        assert(Array.isArray(data.choices) && data.choices.every(c => c.dietaryType === 'non-veg'), 'Every individual choice is strictly labeled non-veg (P0.4)');
+    } catch (err) {
+        assert(false, `Test 10 threw error: ${err.message}`);
+    }
+
+    // Test 11: Ingredient Compound Aliases & Plural Matching (P1)
+    try {
+        const { calculateIngredientMatch, getIngredientAliases } = require('../lib/dietaryCheck');
+        const potatoAliases = getIngredientAliases('Potato (Aloo)');
+        assert(potatoAliases.includes('potato') && potatoAliases.includes('aloo'), 'Extracts aliases for compound names "Potato (Aloo)"');
+        
+        const dummyDish = {
+            name: "Aloo Palak Curry",
+            instructions: ["Chop the potatoes and simmer with fresh spinach."],
+            ingredientsList: [{ item: "potatoes" }, { item: "spinach" }]
+        };
+        const matchResult = calculateIngredientMatch(dummyDish, ['Potato (Aloo)', 'Spinach (Palak)']);
+        assert(matchResult.matchCount === 2, 'Compound aliases and plural forms successfully match recipe text');
+    } catch (err) {
+        assert(false, `Test 11 threw error: ${err.message}`);
+    }
+
+    // Test 12: Ekman mapping puts desire under joy (P1)
+    try {
+        const { getEkmanGroup } = require('../lib/emotion');
+        assert(getEkmanGroup('desire') === 'joy', 'Official GoEmotions Ekman mapping maps "desire" to "joy"');
+    } catch (err) {
+        assert(false, `Test 12 threw error: ${err.message}`);
+    }
+
+    // Test 13: Tiredness regex boundaries (P1)
+    try {
+        const testRegex = (input) => /\b(tired|exhausted|sleepy|fatigued|fatigue|drained|weary)\b/i.test(input) &&
+            !/\b(not|never)\s+(?:very\s+|too\s+)?(tired|exhausted|sleepy|fatigued)\b/i.test(input);
+
+        assert(testRegex("I am so tired from work today"), 'Matches genuine tiredness sentence');
+        assert(!testRegex("My grandfather retired last year"), 'Does not falsely match "retired"');
+        assert(!testRegex("I am not tired at all"), 'Does not falsely match "not tired"');
+    } catch (err) {
+        assert(false, `Test 13 threw error: ${err.message}`);
     }
 
     console.log(`\n========================================`);

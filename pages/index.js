@@ -93,6 +93,7 @@ export default function HomePage() {
     const [isAppLoading, setIsAppLoading] = useState(true);
     const [ingredients, setIngredients] = useState([]);
     const [dietaryPreference, setDietaryPreference] = useState('veg'); // 'veg' | 'non-veg'
+    const [currentCulinaryMood, setCurrentCulinaryMood] = useState('balanced');
     const [messages, setMessages] = useState([]); 
     const [textInput, setTextInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -277,6 +278,10 @@ export default function HomePage() {
             const botMessage = { role: 'bot', content: data };
             setMessages(prev => [...prev, botMessage]);
 
+            if (data.culinaryMood || data.predictedMood) {
+                setCurrentCulinaryMood(data.culinaryMood || data.predictedMood);
+            }
+
             if (data.choices && data.choices.length > 0) {
                 const narration = (activeIngredients && activeIngredients.length > 0)
                     ? `Here are ${data.choices.length} dishes you can make with your ingredients. Pick one to see the full recipe!`
@@ -329,7 +334,8 @@ export default function HomePage() {
                 dishName: recipe.name,
                 ingredients,
                 dietaryPreference,
-                dishDietaryType: recipe.dietaryType
+                dishDietaryType: recipe.dietaryType,
+                mood: currentCulinaryMood || recipe.culinaryMood || 'comforting'
             }, session?.access_token);
 
             const botMessage = { role: 'bot', content: { ...data, type: 'recipe_detail' } };
@@ -704,6 +710,7 @@ export default function HomePage() {
             {inputMode === 'ingredients' && (
                 <InputOverlay
                     initialIngredients={ingredients}
+                    dietaryPreference={dietaryPreference}
                     onSubmit={handleOverlaySubmit}
                     onClose={() => setInputMode(null)}
                 />
