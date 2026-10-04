@@ -194,13 +194,13 @@ export default function RecipeDetailCard({ recipe }) {
                 </div>
             )}
 
-            {/* Emotional Wellness Benefit */}
-            {emotionalTherapy && (
+            {/* Culinary Comfort & Mood Note */}
+            {(recipe.culinaryComfort || recipe.moodNote || recipe.emotionalTherapy) && (
                 <div className="bg-blue-950/30 border border-blue-500/40 rounded-xl p-3 flex items-start gap-2.5 text-xs text-blue-200">
                     <span className="text-base flex-shrink-0">🌿</span>
                     <div>
-                        <span className="font-bold text-blue-300">Mood Benefit: </span>
-                        <span>{emotionalTherapy}</span>
+                        <span className="font-bold text-blue-300">Culinary Comfort: </span>
+                        <span>{recipe.culinaryComfort || recipe.moodNote || recipe.emotionalTherapy}</span>
                     </div>
                 </div>
             )}

@@ -26,16 +26,22 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method Not Allowed. Use POST.' });
     }
 
-    // WP1.5: Rate Limiting
-    if (applyRateLimit(req, res, { maxRequests: 20, windowMs: 60000 })) {
+    // WP1.5: Isolated Per-Route Rate Limiting (Keyed by IP + routeKey)
+    if (applyRateLimit(req, res, { routeKey: 'identifyIngredients', maxRequests: 20, windowMs: 60000 })) {
         return;
+    }
+
+    // WP1.2: Validate Content-Length upfront before reading stream to avoid dropped connections
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > MAX_IMAGE_SIZE_BYTES) {
+        return res.status(413).json({ message: 'Payload too large. Image exceeds 5MB limit.' });
     }
 
     // WP1.2: Validate Content-Type
     const contentType = (req.headers['content-type'] || '').toLowerCase().split(';')[0].trim();
     if (!ALLOWED_IMAGE_MIME_TYPES.includes(contentType)) {
         return res.status(415).json({
-            message: `Unsupported media type "${contentType}". Allowed image types: JPEG, PNG, WEBP, GIF.`
+            message: `Unsupported media type "${contentType}". Allowed image types: JPEG, JPG, PNG, WEBP, GIF.`
         });
     }
 
@@ -45,7 +51,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        // WP1.2: Stream with strict size limit enforcement (max 5MB)
+        // Stream with size limit enforcement (max 5MB)
         const imageBuffer = await new Promise((resolve, reject) => {
             const chunks = [];
             let totalBytes = 0;
@@ -55,7 +61,7 @@ export default async function handler(req, res) {
                 if (totalBytes > MAX_IMAGE_SIZE_BYTES) {
                     const error = new Error('Payload too large. Image exceeds 5MB limit.');
                     error.code = 'LIMIT_FILE_SIZE';
-                    req.destroy();
+                    req.pause();
                     return reject(error);
                 }
                 chunks.push(chunk);
@@ -85,10 +91,13 @@ export default async function handler(req, res) {
         const response = await result.response;
         const text = response.text() || '';
 
-        const ingredients = text
+        const rawList = text
             .split(/[\n,]+/)
             .map(item => item.replace(/^[-*•\s]+/, '').trim().toLowerCase())
             .filter(item => item.length > 1 && item.length <= 40);
+
+        // Deduplicate and cap to 25 items so downstream suggestFood input schema never rejects it
+        const ingredients = Array.from(new Set(rawList)).slice(0, 25);
 
         return res.status(200).json({ ingredients });
 

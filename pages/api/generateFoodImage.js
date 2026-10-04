@@ -10,17 +10,17 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method Not Allowed. Use GET.' });
     }
 
-    // WP1.5: Rate Limiting
-    if (applyRateLimit(req, res, { maxRequests: 40, windowMs: 60000 })) {
+    // WP1.5: Isolated Per-Route Rate Limiting (Keyed by IP + routeKey)
+    if (applyRateLimit(req, res, { routeKey: 'generateFoodImage', maxRequests: 40, windowMs: 60000 })) {
         return;
     }
 
-    // WP1.2: Input Validation
+    // WP1.2 & Zod 4 compatibility: Input Validation
     const validationResult = generateFoodImageInputSchema.safeParse(req.query);
     if (!validationResult.success) {
         return res.status(400).json({
             error: 'Invalid input',
-            details: validationResult.error.errors.map(e => e.message)
+            details: (validationResult.error.issues || validationResult.error.errors || []).map(e => e.message)
         });
     }
 

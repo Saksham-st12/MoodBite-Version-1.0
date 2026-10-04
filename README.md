@@ -32,38 +32,47 @@ Once a user selects a recipe, MoodBite transitions into an interactive sous-chef
                              (lib/validation.js with Zod)
                                           │
                                           ▼
-                               [ Rate Limiting Layer ]
-                       (lib/rateLimit.js - Sliding Window)
+                         [ Isolated Route Rate Limiter ]
+                   (lib/rateLimit.js - Keyed by IP:RouteKey)
                                           │
                    ┌──────────────────────┴──────────────────────┐
                    ▼                                             ▼
        [ Emotion Inference Head ]                    [ Multimodal Vision ]
-        RoBERTa-base (GoEmotions)                     Gemini 3.5 Flash
+        RoBERTa-base (GoEmotions)                   Gemini 3.5 Flash Lite
          (Hugging Face API Router)                  (Ingredient Extraction)
+         (1.5s AbortController cap)                   (Capped at 25 items)
                    │                                             │
                    └──────────────────────┬──────────────────────┘
                                           │
+                       (Emotion label + User context)
+                                          │
                                           ▼
                              [ Primary Reasoning Engine ]
-                             Google Gemini 3.5 Flash LLM
-                                (Timeout: 10s via Abort)
+                            Google Gemini 3.5 Flash Lite
+                              (Ultra-fast ~800ms tier)
                                           │
                                (Fallback on failure)
                                           ▼
                             [ Secondary Fallback Engine ]
-                               Anthropic Claude 3 Haiku
-                                (OpenRouter API Provider)
+                               Google Gemini 3.5 Flash
+                                          │
+                               (Fallback on failure)
+                                          ▼
+                            [ Tertiary Fallback Engine ]
+                              Anthropic Claude 3 Haiku
+                                (OpenRouter Provider)
                                           │
                                           ▼
                         [ Deterministic Post-Processing ]
                        (lib/dietaryCheck.js - Non-LLM)
                        ├── Strict Meat-Keyword Elimination (Veg)
+                       ├── Vegetarian Exception Allowlist (soya keema, etc.)
                        ├── Ingredient Occurrence Verification
-                       └── Zod Schema Conformance Check
+                       └── Zod 4 Schema Conformance Check
                                           │
                                           ▼
                              [ Visual & Audio Enrichment ]
-                             ├── Pexels API (Dish Photography)
+                             ├── Pexels API (Dish Photography with CDN Cache)
                              └── Web Speech API (Voice Narration)
 ```
 
@@ -75,33 +84,35 @@ Once a user selects a recipe, MoodBite transitions into an interactive sous-chef
 All API keys are strictly loaded and executed within serverless routes (`pages/api/*`). No `NEXT_PUBLIC_` prefixes are assigned to sensitive AI or vision keys.
 
 ### 2. Request Input Validation (WP1.2)
-All API endpoints validate incoming parameters via [Zod](https://zod.dev):
+All API endpoints validate incoming parameters via [Zod](https://zod.dev) using standard issue reporting:
 - **`/api/suggestFood`**: Text length bounded (1–500 chars), ingredient array capped at 25 items (max 50 chars each), strict enum for dietary preferences (`'veg' | 'non-veg' | 'all'`).
-- **`/api/identifyIngredients`**: Content-Type verification (`image/jpeg`, `image/png`, `image/webp`), streaming byte-counter capping uploads to 5 MB (`413 Payload Too Large`).
-- **`/api/getRecipeDetails`**: Dish name bounded (2–100 chars), sanitization of pantry items.
+- **`/api/identifyIngredients`**: Content-Length checked upfront; Content-Type verification (`image/jpeg`, `image/jpg`, `image/png`, `image/webp`, `image/gif`), streaming byte-counter capping uploads to 5 MB (`413 Payload Too Large`).
+- **`/api/getRecipeDetails`**: Dish name bounded (2–100 chars), prompt injection delimiters (`<dish_name>`, `<available_ingredients>`).
 - **`/api/generateFoodImage`**: Query length limits and URI decoding guards.
 
 ### 3. Zod Output Validation & Schema Retries (WP1.3)
 Raw outputs from LLMs are extracted from Markdown fences, parsed as JSON, and verified against strict Zod schemas (`suggestFoodOutputSchema`, `recipeDetailsOutputSchema`). If an LLM returns malformed JSON, MoodBite triggers a secondary model retry before falling back to a structured, guaranteed safe fallback.
 
-### 4. Deterministic Model Hierarchy & Timeouts (WP1.4 & WP2.2)
+### 4. Deterministic Model Hierarchy & Sub-Second Latency (WP1.4 & WP2.2)
 Rather than executing redundant parallel model calls and picking the highest self-reported number, MoodBite implements a cost-efficient **hierarchical fallback order**:
-1. **Primary**: Google Gemini 3.5 Flash (10s timeout via `AbortController`)
-2. **Secondary**: Google Gemini 3.5 Flash Lite
+1. **Primary**: Google Gemini 3.5 Flash Lite (ultra-fast, ~700–1000ms response time)
+2. **Secondary**: Google Gemini 3.5 Flash (~2000ms response time)
 3. **Tertiary Fallback**: Anthropic Claude 3 Haiku via OpenRouter
-4. **Guaranteed Local Fallback**: Deterministic emergency comfort meal structure
+4. **Guaranteed Safe Fallback**: Deterministic local comfort meal structure
 
-### 5. In-Memory Sliding-Window Rate Limiting (WP1.5)
-Protects against API quota exhaustion with per-IP rate limiting (`lib/rateLimit.js`):
-- AI recommendation and vision endpoints: 20–25 requests/min.
-- Image generation endpoints: 40 requests/min.
+### 5. Isolated Per-Route Rate Limiting (WP1.5)
+Protects against API quota exhaustion with per-route sliding window buckets (`lib/rateLimit.js` keyed by `${ip}:${routeKey}`):
+- `/api/suggestFood`: 25 requests/min.
+- `/api/getRecipeDetails`: 25 requests/min.
+- `/api/identifyIngredients`: 20 requests/min.
+- `/api/generateFoodImage`: 40 requests/min.
 - Standard HTTP `429 Too Many Requests` responses with `Retry-After` headers.
 
 ### 6. Honest AI Match Rating (WP2.1)
-The legacy `confidenceScore` parameter has been refactored to `llmSelfRating` and is explicitly labeled on the UI as an **AI Match Rating (Self-Reported Indicator)**, eliminating deceptive statistical "confidence" claims.
+The legacy `confidenceScore` parameter has been eliminated. The `llmSelfRating` is an honest, optional self-evaluation provided by the model. When a deterministic fallback response is served, `llmSelfRating` is set to `null` and the rating badge is hidden from the UI.
 
 ### 7. Non-LLM Deterministic Quality Signals (WP2.3)
-- **Dietary Compliance Filter**: Uses word-boundary regex patterns against an extensive non-vegetarian keyword glossary (`chicken`, `mutton`, `fish`, `egg`, `keema`, etc.) to guarantee that vegetarian choices never contain meat products.
+- **Dietary Compliance Filter**: Uses word-boundary regex patterns against an extensive non-vegetarian keyword glossary (`chicken`, `mutton`, `fish`, `egg`, `keema`, `nihari`, `haleem`, `rogan josh`, `gelatin`, `lard`, etc.) while filtering out vegetarian exceptions (`soya keema`, `meat-free`, `eggless`).
 - **Ingredient Match Ratio**: Deterministically tallies how many user-provided pantry items appear in the suggested recipes.
 
 ---
@@ -150,6 +161,16 @@ Open [http://localhost:3000](http://localhost:3000) in your web browser.
 npm run build
 npm run start
 ```
+
+### Automated Smoke Testing
+```bash
+npm test
+```
+Executes the automated test suite asserting:
+- Zod 4 request validation handling (e.g. clean HTTP 400 with issue messages on empty input)
+- AI Model health (asserts `data.source !== 'Deterministic Safe Fallback'`)
+- Full recipe details and culinary comfort extraction (no medical claims)
+- Dietary compliance and vegetarian exception handling (`soya keema`, `meat-free`, etc.)
 
 ---
 

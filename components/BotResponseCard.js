@@ -23,14 +23,14 @@ export default function BotResponseCard({ response }) {
     const [imageUrl, setImageUrl] = useState(null);
     const [imageLoading, setImageLoading] = useState(true);
 
-    const ratingValue = llmSelfRating || confidenceScore || 85;
-    const targetScore = ratingValue < 2 ? ratingValue * 100 : ratingValue;
+    const hasRating = typeof llmSelfRating === 'number' && llmSelfRating > 0;
+    const targetScore = hasRating ? (llmSelfRating < 2 ? llmSelfRating * 100 : llmSelfRating) : 0;
 
     const count = useMotionValue(0);
     const rounded = useTransform(count, latest => Math.round(latest));
 
     useEffect(() => {
-        const controls = animate(count, targetScore, { duration: 1.5, ease: "easeOut" });
+        const controls = hasRating ? animate(count, targetScore, { duration: 1.5, ease: "easeOut" }) : null;
         if (suggestedFood && !suggestedFood.toLowerCase().includes("failed") && !suggestedFood.toLowerCase().includes("error")) {
             setImageLoading(true);
             fetch(`/api/generateFoodImage?foodName=${encodeURIComponent(suggestedFood)}`)
@@ -40,8 +40,8 @@ export default function BotResponseCard({ response }) {
         } else {
             setImageLoading(false);
         }
-        return () => controls.stop();
-    }, [suggestedFood, count, targetScore]);
+        return () => controls?.stop();
+    }, [suggestedFood, count, targetScore, hasRating]);
 
     return (
         <div className="bg-gray-700 rounded-lg p-4 w-full max-w-lg space-y-4 shadow-lg">
@@ -80,12 +80,14 @@ export default function BotResponseCard({ response }) {
                     <p className="text-2xl font-bold">{suggestedFood}</p>
                 </div>
                 
-                {/* WP2.1: Honest label as AI Match Rating (AI-generated indicator) */}
-                <div className="text-center bg-gray-900/60 p-2.5 rounded-lg border border-gray-700/60 min-w-[120px]">
-                     <p className="text-[11px] text-gray-400 font-medium">AI Match Rating</p>
-                     <motion.p className="text-2xl font-mono font-bold text-green-400">{rounded}%</motion.p>
-                     <p className="text-[9px] text-gray-500">AI-generated indicator</p>
-                </div>
+                {/* AI Match Rating: Rendered ONLY when honest rating is provided by model */}
+                {hasRating && (
+                    <div className="text-center bg-gray-900/60 p-2.5 rounded-lg border border-gray-700/60 min-w-[120px]">
+                         <p className="text-[11px] text-gray-400 font-medium">AI Match Rating</p>
+                         <motion.p className="text-2xl font-mono font-bold text-green-400">{rounded}%</motion.p>
+                         <p className="text-[9px] text-gray-500">AI-generated indicator</p>
+                    </div>
+                )}
             </div>
             <div>
                 <p className="text-xs text-gray-400 mb-1">Reason</p>
