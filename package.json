@@ -8,12 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node scripts/smokeTest.js",
+    "test:unit": "node scripts/unitTest.js",
     "eval:emotion": "node scripts/evaluate_emotion.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.117.2",
-    "dotenv": "^17.2.1",
     "framer-motion": "^12.23.11",
     "next": "^15.5.27",
     "react": "19.1.0",
@@ -24,6 +24,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "dotenv": "^17.2.1",
     "eslint": "^9",
     "eslint-config-next": "^15.5.27",
     "tailwindcss": "^4"

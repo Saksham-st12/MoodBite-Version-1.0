@@ -15,9 +15,9 @@
 
 ## 📖 Project Overview
 
-**MoodBite AI** bridges computational affective computing with nutritional guidance. The application interprets user emotions from natural text or voice expressions, combines them with available kitchen ingredients (entered manually or scanned via computer vision), and generates **4 to 5 culturally authentic Indian meal recommendations** adhering strictly to **FSSAI dietary standards** (100% Vegetarian vs. Non-Vegetarian).
+**MoodBite AI** is an intelligent Indian culinary assistant that pairs affective sentiment analysis with kitchen pantry availability. The application interprets user emotions from natural language text or voice expressions, combines them with available kitchen ingredients (entered manually or scanned via computer vision), and generates **4 to 5 culturally authentic Indian meal recommendations** filtered through a deterministic dietary keyword heuristic (Vegetarian vs. Non-Vegetarian).
 
-Once a user selects a recipe, MoodBite transitions into an interactive sous-chef—providing precise measurements, step-by-step cooking procedures, professional culinary tips, mood-therapy scientific rationale, and hands-free voice narration.
+Once a user selects a recipe, MoodBite transitions into an interactive sous-chef—providing precise measurements, step-by-step cooking procedures, professional culinary tips, culinary style rationales (focusing solely on flavor, warmth, and texture), and hands-free voice narration.
 
 ---
 
@@ -65,10 +65,10 @@ Once a user selects a recipe, MoodBite transitions into an interactive sous-chef
                                           ▼
                         [ Deterministic Post-Processing ]
                        (lib/dietaryCheck.js - Non-LLM)
-                       ├── Strict Meat-Keyword Elimination (Veg)
+                       ├── Meat-Keyword Heuristic Elimination (Veg)
                        ├── Vegetarian Exception Allowlist (soya keema, etc.)
                        ├── Ingredient Occurrence Verification
-                       └── Zod 4 Schema Conformance Check
+                       └── Zod Schema Conformance Check
                                           │
                                           ▼
                              [ Visual & Audio Enrichment ]
@@ -94,11 +94,11 @@ All API endpoints validate incoming parameters via [Zod](https://zod.dev) using 
 Raw outputs from LLMs are extracted from Markdown fences, parsed as JSON, and verified against strict Zod schemas (`suggestFoodOutputSchema`, `recipeDetailsOutputSchema`). If an LLM returns malformed JSON, MoodBite triggers a secondary model retry before falling back to a structured, guaranteed safe fallback.
 
 ### 4. Deterministic Model Hierarchy & Sub-Second Latency (WP1.4 & WP2.2)
-Rather than executing redundant parallel model calls and picking the highest self-reported number, MoodBite implements a cost-efficient **hierarchical fallback order**:
+Rather than executing redundant parallel model calls and picking an arbitrary score, MoodBite implements a cost-efficient **hierarchical fallback order with a strict 12-second total deadline budget**:
 1. **Primary**: Google Gemini 3.5 Flash Lite (ultra-fast, ~700–1000ms response time)
 2. **Secondary**: Google Gemini 3.5 Flash (~2000ms response time)
 3. **Tertiary Fallback**: Anthropic Claude 3 Haiku via OpenRouter
-4. **Guaranteed Safe Fallback**: Deterministic local comfort meal structure
+4. **Guaranteed Safe Fallback**: Deterministic local comfort meal structure (`isFallback: true`)
 
 ### 5. Isolated Per-Route Rate Limiting (WP1.5)
 Protects against API quota exhaustion with per-route sliding window buckets (`lib/rateLimit.js` keyed by `${ip}:${routeKey}`):
@@ -106,18 +106,34 @@ Protects against API quota exhaustion with per-route sliding window buckets (`li
 - `/api/getRecipeDetails`: 25 requests/min.
 - `/api/identifyIngredients`: 20 requests/min.
 - `/api/generateFoodImage`: 40 requests/min.
-- Standard HTTP `429 Too Many Requests` responses with `Retry-After` headers.
+- Standard HTTP `429 Too Many Requests` responses with `Retry-After` headers and clean client-side feedback.
 
 ### 6. Elimination of Arbitrary Match Ratings (WP2.1 & P1.1)
-The legacy `confidenceScore` and anchored AI self-ratings have been completely removed from the UI. Rather than displaying an arbitrary number the model self-assessed without grounding, MoodBite relies strictly on objective signals:
-- Deterministic dietary compliance verification (100% vegetarian guarantee vs. non-veg).
+Legacy `confidenceScore` and arbitrary AI self-ratings have been completely removed from both backend schemas and UI cards. MoodBite relies strictly on verifiable signals:
+- Deterministic dietary compliance filter.
 - Exact pantry ingredient match counts via word boundary analysis.
-- Explicit label indicating whether a recipe is a tailored AI generation or a safe standard fallback template (`isFallback: true`).
+- Explicit label indicating whether a recipe is an AI generation or a fallback preparation template (`isFallback: true`).
 
 ### 7. Non-LLM Deterministic Quality Signals (WP2.3)
 - **Dietary Compliance Filter**: Uses word-boundary regex patterns against an extensive non-vegetarian keyword glossary (`chicken`, `mutton`, `fish`, `egg`, `keema`, `nihari`, `haleem`, `rogan josh`, `gelatin`, `lard`, etc.) while filtering out vegetarian exceptions (`soya keema`, `meat-free`, `eggless`).
 - **Ingredient Match Ratio**: Deterministically tallies how many user-provided pantry items appear in the suggested recipes, escaping special characters and enforcing word boundaries (`\b`) to eliminate false substring collisions (e.g., preventing "oil" from matching "boil" or "pea" from matching "peanut").
 - **Visual Attribution**: Integrates Pexels API photo attribution with direct links to photographer profiles and an explicit *"Illustrative image"* designation.
+
+---
+
+## 🗄️ Supabase Database & Security Setup
+
+MoodBite uses Supabase for user authentication and history persistence while respecting **Affective Privacy** (raw user reflections and emotional disclosures are never stored in the database; only structured food attributes are logged).
+
+### Database Schema & Policies
+To set up your database, execute [`db/schema.sql`](db/schema.sql) in your Supabase SQL Editor:
+
+1. **`recommendation_history`**:
+   - Stores `user_id`, `culinary_mood`, `suggested_food`, `dietary_type`, `choices_count`, and `created_at`.
+   - **RLS Enabled**: Users can only insert and read their own recommendation entries (`auth.uid() = user_id`).
+2. **`user_preferences`**:
+   - Stores `user_id`, `dietary_preference`, `allergies`, `favorite_cuisines`, and `updated_at`.
+   - **RLS Enabled**: Users can read, insert, and update their personal dietary preferences.
 
 ---
 
@@ -141,7 +157,7 @@ Create a `.env.local` file in the project root based on `.env.example`:
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js `18.x` or later (tested on Node `v24.x` / `v20.x`)
+- Node.js `18.x` or later (tested on Node `v20.x` / `v24.x`)
 - npm or yarn
 
 ### Installation
@@ -166,7 +182,7 @@ Open [http://localhost:3000](http://localhost:3000) in your web browser.
 ```bash
 npm test
 ```
-Executes the automated test suite (18 assertions) verifying:
+Executes the full automated smoke test suite (**36 assertions**) against the live dev server verifying:
 - Zod 4 request validation handling (e.g. clean HTTP 400 with issue messages on empty input)
 - AI Model health (asserts active `gemini-3.5-flash-lite`, not safe fallback)
 - Recipe details and culinary comfort extraction (no medical claims)
@@ -175,42 +191,60 @@ Executes the automated test suite (18 assertions) verifying:
 - Mixed-diet mode (`'all'`) correctly preserving non-veg dish categorization
 - Delimiter and HTML sanitization defenses
 
-### Standalone Emotion Classifier Benchmark
+### Fast Offline Unit Testing
 ```bash
-node evaluate.js
+npm run test:unit
 ```
-Runs an isolated evaluation of the RoBERTa GoEmotions classifier against 52 standardized benchmark sentences using the published Demszky et al. (2020) Ekman 6+1 emotion taxonomy:
-- **Strict 28-Emotion Match**: 67.3% (95% CI: 53.8% – 78.5%)
-- **Ekman 6+1 Emotion Match**: 84.6% (95% CI: 72.5% – 92.0%)
-- **Error / Timeout Accountability**: Timeouts and 429s are retained in the denominator ($n = 52$) to ensure honest reporting without data-dropping inflation.
+Runs **36 fast offline unit tests** for `lib/dietaryCheck.js` and `lib/emotion.js` without requiring network access, API tokens, or a running server.
 
 ---
 
-## ⚠️ Known Limitations & Evaluation Notes
+## 📊 Evaluation & Classifier Benchmarks
 
-1. **Unanchored AI Self-Ratings**:
-   LLMs cannot reliably evaluate their own recommendation confidence on a numerical scale without calibration. To maintain scientific integrity, all self-rated confidence percentages have been removed from the UI.
+MoodBite employs the pretrained `SamLowe/roberta-base-go_emotions` model from Hugging Face for affective inference, mapped to Ekman groups and an author-defined culinary taxonomy.
+
+### Benchmark Suites
+
+```bash
+# Run latest 56-sentence evaluation suite with Wilson confidence intervals:
+npm run eval:emotion
+```
+
+### Evaluation Honesty & Dataset Transparency
+When reporting accuracy metrics in academic or engineering reviews, clarity regarding test sets is critical:
+- **Set 1 (Legacy 52-sentence set, `evaluate.js`)**:
+  - Strict 28-Emotion Match: **67.3%** (95% CI: 53.8% – 78.5%)
+  - Ekman 6+1 Emotion Match: **84.6%** (95% CI: 72.5% – 92.0%)
+- **Set 2 (Current 56-sentence set, `npm run eval:emotion`)**:
+  - Ekman 6+1 Emotion Match: **98.2%** (95% Wilson CI: 90.6% – 99.7%, $n=56$)
+  - Macro-F1: **0.982**
+  - Tiredness Keyword Rule: **10/10 (100%)**
+- **Note on Direct Comparison**:
+  Both test sets were created by the project author as single-annotator validation sets. The second set was curated after observing baseline classifier behaviors, which explains the score increase. These two sets should **not** be presented as comparable longitudinal benchmarks. For rigorous empirical claims, evaluation should be run directly against the official GoEmotions test split (5,427 multi-annotated examples).
+
+---
+
+## ⚠️ Known Limitations
+
+1. **Elimination of Arbitrary AI Self-Ratings**:
+   LLMs cannot reliably evaluate their own recommendation confidence on an uncalibrated scale. All fake confidence percentages and AI match badges have been eliminated from the UI.
 2. **GoEmotions 28-Label Closed Taxonomy**:
-   The RoBERTa model (`SamLowe/roberta-base-go_emotions`) is trained on Google's GoEmotions dataset. In GoEmotions, physiological fatigue (*"tired"*, *"exhausted"*, *"drained"*) is categorized as a physical state rather than an affective emotion. Sentences like *"I feel tired and want food"* trigger activations on the `desire` label. MoodBite mitigates this by passing the raw prompt text to Gemini to capture low-energy contexts.
+   In GoEmotions, physiological fatigue (*"tired"*, *"exhausted"*, *"drained"*) is categorized as a physical state rather than an affective emotion. MoodBite uses a dedicated keyword rule (`mentionsTiredness`) with negation detection to map fatigue to the `'restorative'` culinary mood.
 3. **In-Memory Rate Limiting**:
-   The sliding-window rate limiter runs in Node.js process memory. For multi-instance, horizontally-scaled cloud deployments (e.g. AWS ECS or multi-region Vercel), an external Redis store (e.g. Upstash) is recommended.
-4. **Session Persistence**:
-   Version 1.0 operates in client-side state. Persistent user accounts and historical tracking are slated for the upcoming work packages.
-5. **Affective Privacy & Sensitive Data**:
-   Disclosing emotional feelings involves sensitive personal data. By design, MoodBite stores only the detected mood label, ingredients, dietary preference, and selected dish—never raw emotional free-text reflections. A future "Delete my history" action will be provided in the user dashboard.
-6. **Voice Synthesis Engine**:
-   Speech narration uses the browser Web Speech API set to Indian English (`en-IN`). It prefers Google high-quality neural voices available in Chromium browsers (Chrome/Edge), gracefully falling back to standard system speech synthesis on other platforms.
+   The sliding-window rate limiter runs in Node.js process memory. For horizontally-scaled multi-region cloud deployments, a distributed store such as Redis/Upstash is recommended.
+4. **Affective Privacy & Sensitive Data**:
+   Disclosing emotional feelings involves sensitive personal data. By design, MoodBite stores only the detected culinary mood label, ingredients, dietary preference, and selected dish—never raw emotional free-text reflections.
 
 ---
 
 ## 🗺️ Engineering Roadmap (Work Packages)
 
 - [x] **WP1: Audit & v1.0 Hardening** (Schema validation, input sanitization, rate limiting, timeouts, .env.example, README)
-- [x] **WP2: Fix Confidence-Score Handling** (Rename to `llmSelfRating`, deterministic hierarchy, keyword dietary filter)
+- [x] **WP2: Removal of Fabricated Match Ratings** (Eliminated arbitrary ratings, deterministic hierarchy, keyword dietary filter)
 - [x] **WP3: Authentication** (Supabase Auth with Email/Password & Google OAuth, retaining guest mode)
-- [ ] **WP4: Relational Database** (PostgreSQL / Supabase with `users`, `user_preferences`, `recommendation_history`, `recipe_selections`, `feedback`)
-- [ ] **WP5: User Dashboard & Feedback UI** (Profile preferences, history viewing, recommendation rating)
-- [ ] **WP6: Automated Evaluation & CI** (Dietary compliance rate, ingredient match rate, GitHub Actions)
+- [x] **WP4: Relational Database Schema** (PostgreSQL / Supabase with `recommendation_history`, `user_preferences`, and RLS policies in `db/schema.sql`)
+- [ ] **WP5: User Dashboard & History UI** (Profile preferences, history viewing)
+- [x] **WP6: Automated Evaluation & CI** (Offline unit testing, GitHub Actions CI workflow, GoEmotions evaluation suite)
 
 ---
 

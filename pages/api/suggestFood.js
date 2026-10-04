@@ -183,8 +183,8 @@ export default async function handler(req, res) {
             : `"Here are 4 Indian dishes to match your mood"`;
 
         const matchReasonGuidance = hasIngredients
-            ? `How it utilizes their available ingredients to elevate their mood`
-            : `Culinary rationale explaining the soothing flavors, warmth, and texture for this mood`;
+            ? `"One sentence on how the dish uses their ingredients and suits the food style (flavour, texture, warmth only)"`
+            : `"Culinary rationale explaining the soothing flavors, warmth, and texture for this food style"`;
 
         const choiceDietExample = dietaryPreference === 'non-veg' ? 'non-veg'
             : dietaryPreference === 'veg' ? 'veg'
@@ -368,8 +368,8 @@ CRITICAL INSTRUCTION: The user provided NO kitchen ingredients (this is a pure m
                 ...choice,
                 matchReason: (choice.matchReason || '')
                     .replace(/with (your|available|these) ingredients/gi, 'for your mood')
-                    .replace(/using (your|available|these) ingredients/gi, 'to elevate your mood')
-                    .replace(/uses your pantry ingredients/gi, 'matches your emotional state')
+                    .replace(/using (your|available|these) ingredients/gi, 'to suit your food mood')
+                    .replace(/uses your pantry ingredients/gi, 'suits your food mood')
             }));
         }
 
