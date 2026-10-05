@@ -1,4 +1,4 @@
-# MoodBite AI (Version 1.0)
+# Moodbite.ai
 
 > **Emotion-Aware Indian Culinary Recommendation Engine & Interactive Cooking Assistant**  
 > Final Year Engineering Capstone Project by **Saksham Tiwari**

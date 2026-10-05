@@ -132,11 +132,6 @@ export default function BotResponseCard({ response }) {
                 <motion.p className="text-sm text-gray-300 overflow-hidden" animate={{ height: isExpanded ? 'auto' : '40px' }} >{reason}</motion.p>
                 <button onClick={() => setIsExpanded(!isExpanded)} className="text-xs text-blue-400 hover:underline mt-1">{isExpanded ? 'Show Less' : 'Show More...'}</button>
             </div>
-            {source && (
-                <div className="text-right text-xs text-gray-500 pt-2 border-t border-gray-600/50">
-                    Model: {source}
-                </div>
-            )}
         </div>
     );
 }

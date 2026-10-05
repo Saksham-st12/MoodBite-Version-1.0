@@ -1,5 +1,6 @@
 // pages/about.js
 import React, { useState } from 'react';
+import Head from 'next/head';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +11,11 @@ export default function AboutPage() {
 
     return (
         <div className="min-h-screen w-full bg-black text-white relative overflow-x-hidden selection:bg-indigo-500/30 selection:text-white">
+            <Head>
+                <title>About - MoodBite.ai</title>
+                <meta name="description" content="Architecture, taxonomy, and methodology behind MoodBite.ai." />
+            </Head>
+
             {/* Ambient Background Glows */}
             <div className="fixed inset-0 w-full h-full -z-10 bg-gradient-to-br from-gray-950 via-slate-950 to-black pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-600/10 rounded-full blur-[130px]" />
@@ -19,7 +25,7 @@ export default function AboutPage() {
             {/* Header Navigation */}
             <nav className="fixed top-0 left-0 w-full p-4 sm:p-6 z-50 flex justify-between items-center bg-black/40 backdrop-blur-md border-b border-white/10">
                 <div className="flex items-center space-x-3">
-                    {/* ChatGPT-style Profile Icon Dropdown */}
+                    {/* Profile Icon Dropdown */}
                     <div className="relative">
                         <button
                             type="button"
@@ -127,7 +133,7 @@ export default function AboutPage() {
                         </h1>
                     </Link>
                     <div className="hidden sm:inline-flex text-[11px] text-white/60 border border-white/15 px-2.5 py-0.5 rounded-full backdrop-blur-md bg-white/5 font-mono">
-                        v3.0
+                        v1.0
                     </div>
                 </div>
 

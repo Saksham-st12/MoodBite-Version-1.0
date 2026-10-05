@@ -57,12 +57,6 @@ export default function RecipeChoicesCard({ response, onSelectRecipe }) {
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 capitalize">
                         {foodMood}
                     </span>
-
-                    {source && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400 border border-white/10 ml-auto hidden sm:inline-block">
-                            {source}
-                        </span>
-                    )}
                 </div>
 
                 <p className="text-xs sm:text-sm text-gray-200 font-medium leading-relaxed">

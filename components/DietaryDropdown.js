@@ -43,7 +43,7 @@ export default function DietaryDropdown({ dietaryPreference, onSelect }) {
                 {isOpen && (
                     <>
                         <div
-                            className="fixed inset-0 z-30"
+                            className="fixed inset-0 z-40"
                             onClick={() => setIsOpen(false)}
                         />
                         <motion.div
@@ -51,12 +51,13 @@ export default function DietaryDropdown({ dietaryPreference, onSelect }) {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -6 }}
                             transition={{ duration: 0.15 }}
-                            className="absolute bottom-full mb-2 left-0 sm:left-auto sm:right-0 w-52 sm:w-56 rounded-2xl bg-gray-950/95 border border-white/15 shadow-2xl backdrop-blur-xl p-1.5 z-40 text-xs"
+                            className="absolute bottom-full mb-2 left-0 w-56 sm:w-60 rounded-2xl bg-gray-950/98 border border-white/20 shadow-2xl backdrop-blur-2xl p-2 z-50 text-xs"
                         >
-                            <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-white/10 mb-1">
-                                Dietary Filter
+                            <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-purple-300 border-b border-white/10 mb-1.5 flex items-center justify-between">
+                                <span>Dietary Filter</span>
+                                <span className="text-[10px] text-gray-400 font-normal">Choose meal type</span>
                             </div>
-                            <div className="space-y-0.5">
+                            <div className="space-y-1">
                                 {options.map(opt => (
                                     <button
                                         key={opt.id}
@@ -67,14 +68,14 @@ export default function DietaryDropdown({ dietaryPreference, onSelect }) {
                                         }}
                                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left transition-all ${
                                             dietaryPreference === opt.id
-                                                ? 'bg-white/10 text-white font-semibold'
-                                                : 'text-gray-300 hover:text-white hover:bg-white/5'
+                                                ? 'bg-purple-900/40 text-white font-semibold border border-purple-500/40'
+                                                : 'text-gray-200 hover:text-white hover:bg-white/10'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2.5">
                                             <span className="text-base leading-none">{opt.icon}</span>
                                             <div>
-                                                <p className="text-xs leading-none">{opt.label}</p>
+                                                <p className="text-xs font-medium leading-none text-white">{opt.label}</p>
                                                 <p className="text-[10px] text-gray-400 mt-0.5 leading-none">{opt.desc}</p>
                                             </div>
                                         </div>

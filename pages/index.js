@@ -1,5 +1,6 @@
-// pages/index.js (Modern Minimalist Dark UI, ChatGPT-style Profile, In-Chat Veg/Non-Veg Dropdown, Mobile & Laptop Optimized)
+// pages/index.js (Modern Minimalist Dark UI, Profile Menu, In-Chat Veg/Non-Veg Dropdown, Mobile & Laptop Optimized)
 import { useState, useEffect, useRef } from 'react';
+import Head from 'next/head';
 import { AnimatePresence, motion } from 'framer-motion';
 import Header from '../components/Header';
 import DietaryDropdown from '../components/DietaryDropdown';
@@ -437,13 +438,18 @@ export default function HomePage() {
 
     return (
         <div className="w-full h-screen bg-black flex flex-col text-white relative overflow-hidden font-sans selection:bg-indigo-500/30 selection:text-white" onClick={handleInterrupt}>
+            <Head>
+                <title>MoodBite.ai - Emotion-Aware Indian Culinary Assistant</title>
+                <meta name="description" content="Discover authentic Indian recipes tailored to your mood and available kitchen ingredients." />
+            </Head>
+
             {/* Ambient Background Glows */}
             <div className="fixed inset-0 w-full h-full -z-10 bg-gradient-to-br from-gray-950 via-slate-950 to-black pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-600/10 rounded-full blur-[130px]" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-purple-600/10 rounded-full blur-[130px]" />
             </div>
             
-            {/* ChatGPT-style Header Bar */}
+            {/* Top Navigation Header Bar */}
             <Header
                 onOpenPantry={() => setInputMode('ingredients')}
                 onResetChat={() => setMessages([])}
@@ -546,7 +552,7 @@ export default function HomePage() {
                             {/* The Modern Chat Input Card */}
                             <form
                                 onSubmit={handleChatSubmit}
-                                className="relative flex flex-col border border-white/20 rounded-3xl bg-[rgba(255,255,255,0.06)] backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-300 focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/20"
+                                className="relative flex flex-col border border-white/20 rounded-3xl bg-[rgba(255,255,255,0.06)] backdrop-blur-xl shadow-2xl overflow-visible transition-all duration-300 focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/20"
                             >
                                 <Textarea
                                     value={textInput}
@@ -718,6 +724,41 @@ export default function HomePage() {
                                         </div>
                                         <p className="leading-relaxed">{msg.content.reason || msg.content.message}</p>
                                     </div>
+                                ) : (msg.content?.type === 'conversational' || msg.content?.isGreeting || msg.content?.isUnfamiliar) ? (
+                                    <div className="bg-white/[0.05] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-5 max-w-lg space-y-3.5 shadow-2xl backdrop-blur-xl">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-sm shadow-md">
+                                                🍲
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xs sm:text-sm font-semibold text-white">MoodBite Culinary Assistant</h4>
+                                                <p className="text-[10px] text-gray-400">Mood & Ingredient Matcher</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs sm:text-sm text-gray-200 leading-relaxed font-light">
+                                            {msg.content.message || msg.content.greeting}
+                                        </p>
+                                        {Array.isArray(msg.content.suggestedPrompts) && msg.content.suggestedPrompts.length > 0 && (
+                                            <div className="space-y-1.5 pt-2 border-t border-white/10">
+                                                <p className="text-[10px] uppercase font-bold tracking-wider text-purple-300">
+                                                    Try asking:
+                                                </p>
+                                                <div className="flex flex-col gap-1.5">
+                                                    {msg.content.suggestedPrompts.map((promptText, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => handleChatSubmit(null, promptText)}
+                                                            className="text-left text-xs px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 hover:border-purple-500/30 transition-all flex items-center justify-between group"
+                                                        >
+                                                            <span>&ldquo;{promptText}&rdquo;</span>
+                                                            <span className="text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : msg.content?.choices && msg.content?.choices.length > 0 ? (
                                     <RecipeChoicesCard response={msg.content} onSelectRecipe={handleSelectRecipe} />
                                 ) : (
@@ -768,7 +809,7 @@ export default function HomePage() {
 
                         <form
                             onSubmit={handleChatSubmit}
-                            className="relative flex flex-col border border-white/20 rounded-3xl bg-[rgba(255,255,255,0.08)] backdrop-blur-xl shadow-2xl overflow-hidden focus-within:border-purple-500/50"
+                            className="relative flex flex-col border border-white/20 rounded-3xl bg-[rgba(255,255,255,0.08)] backdrop-blur-xl shadow-2xl overflow-visible focus-within:border-purple-500/50"
                         >
                             <Textarea
                                 value={textInput}

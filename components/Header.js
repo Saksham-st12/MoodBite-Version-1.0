@@ -10,7 +10,7 @@ export default function Header({ onOpenPantry, onResetChat }) {
 
     return (
         <header className="relative z-40 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-black/40 backdrop-blur-md border-b border-white/10 flex-shrink-0">
-            {/* Left: ChatGPT-style Profile Icon & Brand Logo */}
+            {/* Left: Profile Icon & Brand Logo */}
             <div className="flex items-center gap-2.5 sm:gap-3">
                 {/* Profile Trigger Button */}
                 <div className="relative">
@@ -32,7 +32,7 @@ export default function Header({ onOpenPantry, onResetChat }) {
                         )}
                     </button>
 
-                    {/* ChatGPT-style Dropdown Menu */}
+                    {/* Profile Dropdown Menu */}
                     <AnimatePresence>
                         {isMenuOpen && (
                             <>
@@ -137,10 +137,10 @@ export default function Header({ onOpenPantry, onResetChat }) {
                 {/* Logo and Version Badge */}
                 <Link href="/" className="flex items-center gap-2 cursor-pointer group">
                     <span className="text-lg sm:text-2xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white via-white/90 to-white/70 group-hover:to-white transition-all">
-                        MoodBite.Ai
+                        MoodBite.ai
                     </span>
                     <span className="text-[10px] sm:text-xs text-white/50 border border-white/10 px-2 sm:px-2.5 py-0.5 rounded-full backdrop-blur-md bg-white/5 font-mono">
-                        v3.0
+                        v1.0
                     </span>
                 </Link>
             </div>
