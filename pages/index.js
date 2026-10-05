@@ -1,6 +1,8 @@
-// pages/index.js (Hardened UI, Robust Error Handling, Canvas Resizing & Supabase Auth)
+// pages/index.js (Modern Minimalist Dark UI, ChatGPT-style Profile, In-Chat Veg/Non-Veg Dropdown, Mobile & Laptop Optimized)
 import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import Header from '../components/Header';
+import DietaryDropdown from '../components/DietaryDropdown';
 import BotResponseCard from '../components/BotResponseCard';
 import RecipeChoicesCard from '../components/RecipeChoicesCard';
 import RecipeDetailCard from '../components/RecipeDetailCard';
@@ -8,8 +10,18 @@ import TypingIndicator from '../components/TypingIndicator';
 import InputOverlay from '../components/InputOverlay';
 import Textarea from 'react-textarea-autosize';
 import Loader from '../components/Loader';
-import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
+
+const MAX_INGREDIENTS = 25;
+const MAX_TEXT_LENGTH = 500;
+
+// Prompt inspiration suggestions for quick one-click input
+const SUGGESTED_PROMPTS = [
+    { text: "Feeling exhausted after work, need something quick", mood: "Tired" },
+    { text: "Celebration time! Craving something festive", mood: "Joyful" },
+    { text: "Stressed about exams, need warm comfort food", mood: "Calming" },
+    { text: "Cold rainy evening, want soothing home-style dal", mood: "Comforting" }
+];
 
 /**
  * Robust JSON POST helper that captures HTTP status and Retry-After headers (P0.2)
@@ -62,7 +74,6 @@ function friendlyError(err) {
  */
 function resizeImageOnCanvas(file, maxDimension = 1024, quality = 0.85) {
     return new Promise((resolve) => {
-        // If image is already small (< 1.5MB), avoid extra work
         if (file.size < 1.5 * 1024 * 1024) {
             return resolve(file);
         }
@@ -111,7 +122,7 @@ function resizeImageOnCanvas(file, maxDimension = 1024, quality = 0.85) {
 export default function HomePage() {
     const [isAppLoading, setIsAppLoading] = useState(true);
     const [ingredients, setIngredients] = useState([]);
-    const [dietaryPreference, setDietaryPreference] = useState('veg'); // 'veg' | 'non-veg'
+    const [dietaryPreference, setDietaryPreference] = useState('veg'); // 'veg' | 'non-veg' | 'all'
     const [currentCulinaryMood, setCurrentCulinaryMood] = useState('balanced');
     const [messages, setMessages] = useState([]); 
     const [textInput, setTextInput] = useState('');
@@ -124,9 +135,9 @@ export default function HomePage() {
     const voices = useRef([]);
     const chatEndRef = useRef(null);
     const fileInputRef = useRef(null);
-    const { user, session, signOut } = useAuth();
+    const { session } = useAuth();
 
-    // Splash Screen: Displayed once per browser session (P1)
+    // Splash Screen: Displayed once per browser session
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const hasSeen = sessionStorage.getItem('moodbite_splash_seen');
@@ -144,16 +155,11 @@ export default function HomePage() {
         return () => clearTimeout(timer);
     }, []);
 
-    const handleSkipLoader = () => {
-        if (typeof window !== 'undefined') {
-            sessionStorage.setItem('moodbite_splash_seen', 'true');
-        }
-        setIsAppLoading(false);
-    };
-
     // Auto-scroll chat to latest message
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (messages.length > 0) {
+            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
     }, [messages, isLoading]);
     
     // Web Speech API Voice Recognition & Synthesis
@@ -190,7 +196,6 @@ export default function HomePage() {
         setAssistantState('speaking');
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = currentLang;
-        // Prioritize natural speech voices if available in Chrome/Edge
         const voice = voices.current.find(v => v.lang === currentLang && v.name.includes('Google'));
         if (voice) utterance.voice = voice;
         utterance.onend = () => setAssistantState('idle');
@@ -198,11 +203,27 @@ export default function HomePage() {
         window.speechSynthesis.speak(utterance);
     };
 
-    // Client-side image upload with canvas resizing and URL revocation (P0.3)
+    const handleVoiceClick = (e) => {
+        e.stopPropagation();
+        if (!recognitionRef.current) return;
+        if (assistantState === 'listening') {
+            recognitionRef.current.stop();
+        } else {
+            setTextInput('');
+            recognitionRef.current.start();
+        }
+    };
+
+    const handleInterrupt = () => {
+        if (assistantState === 'speaking') {
+            window.speechSynthesis.cancel();
+            setAssistantState('idle');
+        }
+    };
+
+    // Image Upload & Vision Ingredient Identification
     const handleImageUpload = async (event) => {
         const files = Array.from(event.target.files);
-        // Reset file input value so re-selecting the same file fires onChange cleanly
-        if (fileInputRef.current) fileInputRef.current.value = '';
         if (!files || files.length === 0) return;
 
         const newPreviews = files.map(file => ({
@@ -210,15 +231,13 @@ export default function HomePage() {
             file,
             previewUrl: URL.createObjectURL(file),
             status: 'uploading',
-            ingredients: [],
-            errorMessage: null
+            ingredients: []
         }));
 
         setFilePreviews(prev => [...prev, ...newPreviews]);
 
         for (const preview of newPreviews) {
             try {
-                // Resize image to ensure it is bounded (< 1024px, < 5MB)
                 const processedFile = await resizeImageOnCanvas(preview.file);
                 const response = await fetch('/api/identifyIngredients', {
                     method: 'POST',
@@ -230,8 +249,7 @@ export default function HomePage() {
                     throw new Error(data.message || 'Image analysis failed');
                 }
                 const extracted = Array.isArray(data.ingredients) ? data.ingredients : [];
-                // Deduplicate and cap to 25 ingredients
-                setIngredients(prev => [...new Set([...prev, ...extracted])].slice(0, 25));
+                setIngredients(prev => [...new Set([...prev, ...extracted])].slice(0, MAX_INGREDIENTS));
                 setFilePreviews(prev => prev.map(p => p.id === preview.id ? { ...p, status: 'success', ingredients: extracted } : p));
             } catch (err) {
                 console.error("Ingredient identification error:", err);
@@ -259,10 +277,10 @@ export default function HomePage() {
         setFilePreviews([]);
     };
     
-    // Chat Submit with HTTP Error Guarding and Friendly Feedback (P0.2)
+    // Chat Submit
     const handleChatSubmit = async (e, textOverride = null, ingredientsOverride = null) => {
         if (e) e.preventDefault();
-        const activeIngredients = (ingredientsOverride || ingredients).slice(0, 25);
+        const activeIngredients = (ingredientsOverride || ingredients).slice(0, MAX_INGREDIENTS);
         let textToSubmit = (textOverride || textInput).trim();
         if (!textToSubmit) {
             if (activeIngredients && activeIngredients.length > 0) {
@@ -272,9 +290,8 @@ export default function HomePage() {
             }
         }
 
-        // Bounded length guard (max 500 chars)
-        if (textToSubmit.length > 500) {
-            textToSubmit = textToSubmit.slice(0, 500);
+        if (textToSubmit.length > MAX_TEXT_LENGTH) {
+            textToSubmit = textToSubmit.slice(0, MAX_TEXT_LENGTH);
         }
 
         const userMessage = { 
@@ -304,7 +321,7 @@ export default function HomePage() {
             if (data.choices && data.choices.length > 0) {
                 const narration = (activeIngredients && activeIngredients.length > 0)
                     ? `Here are ${data.choices.length} dishes you can make with your ingredients. Pick one to see the full recipe!`
-                    : `Here are ${data.choices.length} comforting dishes tailored to your mood. Pick one to see the full recipe!`;
+                    : `Here are ${data.choices.length} comforting dishes tailored to your food mood. Pick one to see the full recipe!`;
                 speak(narration);
             } else if (data.suggestedFood) {
                 speak(`${data.suggestedFood}. ${data.reason}`);
@@ -330,7 +347,7 @@ export default function HomePage() {
         }
     };
 
-    // Recipe Selection with HTTP Error Guarding & Explicit Fallbacks (P0.2)
+    // Recipe Selection
     const handleSelectRecipe = async (recipe) => {
         const userMsg = { role: 'user', content: `I'd like to cook ${recipe.name}! Show me the complete making process.` };
         setMessages(prev => [...prev, userMsg]);
@@ -350,7 +367,6 @@ export default function HomePage() {
             speak(`Here is the complete recipe and cooking guide for ${data.dishName}.`);
         } catch (error) {
             console.error("Error fetching recipe details:", error);
-            // Input and rate-limit problems are the user's to fix: show the reason instead of a template recipe
             if (error.status === 429 || error.status === 400) {
                 const errReason = friendlyError(error);
                 const errorContent = {
@@ -392,28 +408,8 @@ export default function HomePage() {
                 }
             };
             setMessages(prev => [...prev, fallbackMessage]);
-            speak(`Here is a preparation template for ${recipe.name}.`);
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleVoiceClick = (e) => {
-        e.stopPropagation();
-        if (!recognitionRef.current) return;
-        if (assistantState === 'listening') {
-            recognitionRef.current.stop();
-        } else {
-            setTextInput('');
-            clearAllPreviews();
-            recognitionRef.current.start();
-        }
-    };
-
-    const handleInterrupt = () => {
-        if (assistantState === 'speaking') {
-            window.speechSynthesis.cancel();
-            setAssistantState('idle');
         }
     };
 
@@ -426,303 +422,442 @@ export default function HomePage() {
     };
 
     const handleOverlaySubmit = (newIngredients, shouldTriggerSearch = false) => {
-        const capped = (newIngredients || []).slice(0, 25);
-        setIngredients(capped);
+        setIngredients(newIngredients);
         setInputMode(null);
-        if (shouldTriggerSearch && capped.length > 0) {
-            handleChatSubmit(null, `What dishes can I cook with ${capped.join(', ')}?`, capped);
+        if (shouldTriggerSearch && newIngredients && newIngredients.length > 0) {
+            handleChatSubmit(null, `What dishes can I cook with ${newIngredients.join(', ')}?`, newIngredients);
         }
     };
 
     if (isAppLoading) {
-        return <Loader onSkip={handleSkipLoader} />;
+        return <Loader onSkip={() => setIsAppLoading(false)} />;
     }
 
+    const hasMessages = messages.length > 0;
+
     return (
-        <div className="w-full h-screen bg-black flex flex-col text-white" onClick={handleInterrupt}>
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] -z-10"></div>
-            
-            {/* Header Navigation Bar with Auth Status */}
-            <header className="relative z-20 px-4 py-3 border-b border-gray-700/50 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
-                <div className="w-20 hidden sm:block"></div>
-                <div className="text-center">
-                    <h1 className="text-xl sm:text-2xl font-bold tracking-wider">MOODBITE AI</h1>
-                    <p className="text-[11px] text-gray-400">Final Year Project By Saksham</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    {user ? (
-                        <div className="flex items-center gap-2 bg-gray-900/90 border border-gray-700/80 px-2.5 py-1 rounded-full text-xs shadow-md">
-                            <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-[11px]">
-                                {user.email?.charAt(0).toUpperCase() || 'U'}
-                            </span>
-                            <span className="hidden md:inline text-gray-300 max-w-[120px] truncate text-[11px]">
-                                {user.user_metadata?.full_name || user.email}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={signOut}
-                                className="text-gray-400 hover:text-red-400 text-[11px] ml-1 transition"
-                                title="Sign out"
-                            >
-                                ✕
-                            </button>
-                        </div>
-                    ) : (
-                        <Link
-                            href="/login"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white transition shadow-sm shadow-purple-600/30"
-                        >
-                            <span>👤</span>
-                            <span>Sign In</span>
-                        </Link>
-                    )}
-                </div>
-            </header>
-            
-            {/* Top Veg / Non-Veg Indicator Switch */}
-            <div className="relative z-20 w-full max-w-4xl mx-auto px-4 pt-3 pb-1 flex justify-end flex-shrink-0">
-                <div className="inline-flex items-center bg-gray-900/90 border border-gray-700/80 p-1 rounded-full backdrop-blur-md shadow-lg">
-                    <button
-                        type="button"
-                        onClick={() => setDietaryPreference('veg')}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-300 ${
-                            dietaryPreference === 'veg'
-                                ? 'bg-green-600 text-white shadow-[0_0_12px_rgba(34,197,94,0.4)] ring-1 ring-green-400'
-                                : 'text-gray-400 hover:text-green-400'
-                        }`}
-                        title="Vegetarian indicator"
-                    >
-                        <span className="w-3.5 h-3.5 border-2 border-green-500 rounded-[2px] flex items-center justify-center p-[1px] bg-black/60">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        </span>
-                        <span>Veg</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setDietaryPreference('non-veg')}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-300 ${
-                            dietaryPreference === 'non-veg'
-                                ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(239,68,68,0.4)] ring-1 ring-red-400'
-                                : 'text-gray-400 hover:text-red-400'
-                        }`}
-                        title="Non-Vegetarian indicator"
-                    >
-                        <span className="w-3.5 h-3.5 border-2 border-red-500 rounded-[2px] flex items-center justify-center p-[1px] bg-black/60">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        </span>
-                        <span>Non-Veg</span>
-                    </button>
-                </div>
+        <div className="w-full h-screen bg-black flex flex-col text-white relative overflow-hidden font-sans selection:bg-indigo-500/30 selection:text-white" onClick={handleInterrupt}>
+            {/* Ambient Background Glows */}
+            <div className="fixed inset-0 w-full h-full -z-10 bg-gradient-to-br from-gray-950 via-slate-950 to-black pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-600/10 rounded-full blur-[130px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-purple-600/10 rounded-full blur-[130px]" />
             </div>
             
-            {/* Conversation Feed */}
-            <main className="flex-1 overflow-y-auto p-4 space-y-6">
-                {messages.map((msg, index) => (
-                    <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        {msg.role === 'user' ? (
-                            <div className="max-w-lg p-3 rounded-2xl bg-blue-600 shadow-lg text-white">
-                                <p className="text-sm leading-relaxed">{msg.content}</p>
-                                {msg.ingredients && msg.ingredients.length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-blue-400/40 flex flex-wrap gap-1 items-center">
-                                        <span className="text-[11px] text-blue-200 font-semibold">Kitchen items:</span>
-                                        {msg.ingredients.map((ing, i) => (
-                                            <span key={i} className="text-[10px] bg-blue-800/90 px-2 py-0.5 rounded-full border border-blue-400/30 capitalize">
-                                                {ing}
+            {/* ChatGPT-style Header Bar */}
+            <Header
+                onOpenPantry={() => setInputMode('ingredients')}
+                onResetChat={() => setMessages([])}
+            />
+
+            {/* Conversation Feed OR Center Hero */}
+            <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 flex flex-col">
+                {!hasMessages ? (
+                    // Centered Hero Layout (Matches moodbiteai.vercel.app aesthetic)
+                    <div className="flex-1 flex flex-col items-center justify-center max-w-2xl w-full mx-auto space-y-6 sm:space-y-8 my-auto">
+                        <motion.div
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5 }}
+                            className="text-center space-y-2"
+                        >
+                            <h2 className="text-4xl sm:text-5xl md:text-6xl font-extralight tracking-tight text-white">
+                                How are you <span className="font-serif italic text-white/90">feeling</span>?
+                            </h2>
+                            <p className="text-xs sm:text-sm text-gray-400 font-light max-w-md mx-auto">
+                                Share your mood or scan your fridge. We&apos;ll craft authentic Indian recipes to match.
+                            </p>
+                        </motion.div>
+
+                        {/* Input Box Card in Hero State */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.96 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.1, duration: 0.4 }}
+                            className="w-full space-y-3"
+                        >
+                            {/* Active Kitchen Ingredients Banner */}
+                            {ingredients.length > 0 && (
+                                <div className="p-3 bg-white/[0.04] border border-white/10 rounded-2xl backdrop-blur-xl">
+                                    <div className="flex items-center justify-between mb-1.5 text-xs">
+                                        <span className="text-purple-300 font-semibold flex items-center gap-1.5">
+                                            <span>🛒 Pantry Staples</span>
+                                            <span className="text-gray-400 font-normal">({ingredients.length}/{MAX_INGREDIENTS})</span>
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleManualEntryClick}
+                                                className="text-purple-400 hover:text-purple-300 underline text-[11px]"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIngredients([])}
+                                                className="text-gray-400 hover:text-rose-400 text-[11px]"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                                        {ingredients.map((ing, idx) => (
+                                            <span
+                                                key={idx}
+                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-purple-950/60 border border-purple-500/30 text-purple-200"
+                                            >
+                                                <span className="capitalize">{ing}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIngredients(prev => prev.filter((_, i) => i !== idx))}
+                                                    className="text-purple-400 hover:text-white font-bold text-xs"
+                                                >
+                                                    &times;
+                                                </button>
                                             </span>
                                         ))}
                                     </div>
-                                )}
-                            </div>
-                        ) : msg.content?.type === 'recipe_detail' ? (
-                            <RecipeDetailCard recipe={msg.content} />
-                        ) : msg.content?.type === 'error' ? (
-                            <div className="bg-red-950/80 border border-red-500/60 rounded-2xl p-4 max-w-lg text-red-200 text-xs shadow-xl space-y-1.5 backdrop-blur-md">
-                                <div className="flex items-center gap-2 font-bold text-red-300 text-sm">
-                                    <span>⚠️</span>
-                                    <span>{msg.content.title || "Request Notice"}</span>
                                 </div>
-                                <p className="leading-relaxed">{msg.content.reason || msg.content.message}</p>
-                            </div>
-                        ) : msg.content?.choices && msg.content?.choices.length > 0 ? (
-                            <RecipeChoicesCard response={msg.content} onSelectRecipe={handleSelectRecipe} />
-                        ) : (
-                            <BotResponseCard response={msg.content} />
-                        )}
-                    </div>
-                ))}
-                
-                {isLoading && (
-                    <div className="flex justify-start">
-                        <TypingIndicator />
-                    </div>
-                )}
-                
-                <div ref={chatEndRef} />
-            </main>
+                            )}
 
-            {/* Input Bar & Controls */}
-            <footer className="p-4 w-full max-w-4xl mx-auto flex-shrink-0">
-                {ingredients.length > 0 && (
-                    <div className="mb-2 p-2 bg-gray-900/90 border border-gray-700/80 rounded-xl backdrop-blur-md">
-                        <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs text-purple-300 font-semibold flex items-center gap-1">
-                                <span>🛒 Kitchen Pantry:</span>
-                                <span className="text-gray-400 font-normal">({ingredients.length}/25)</span>
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={handleManualEntryClick}
-                                    className="text-[11px] text-purple-400 hover:text-purple-300 underline"
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setIngredients([])}
-                                    className="text-[11px] text-gray-400 hover:text-red-400 transition-colors"
-                                >
-                                    Clear all
-                                </button>
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-                            {ingredients.map((ing, idx) => (
-                                <span
-                                    key={idx}
-                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-purple-950/80 border border-purple-500/40 text-purple-200 shadow-sm"
-                                >
-                                    <span className="capitalize">{ing}</span>
+                            {/* Photo Upload Previews */}
+                            {filePreviews.length > 0 && (
+                                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 p-2 bg-white/[0.03] border border-white/10 rounded-2xl">
+                                    {filePreviews.map(p => (
+                                        <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-white/10">
+                                            <img src={p.previewUrl} className="w-full h-full object-cover" alt="Preview" />
+                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                                {p.status === 'uploading' && <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin" />}
+                                                {p.status === 'success' && <span className="text-emerald-400 font-bold text-xs">✓</span>}
+                                                {p.status === 'error' && <span className="text-rose-400 font-bold text-xs">✕</span>}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removePreview(p.id)}
+                                                className="absolute top-1 right-1 bg-black/80 hover:bg-black rounded-full w-4 h-4 text-white text-[10px] font-bold flex items-center justify-center"
+                                            >
+                                                &times;
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* The Modern Chat Input Card */}
+                            <form
+                                onSubmit={handleChatSubmit}
+                                className="relative flex flex-col border border-white/20 rounded-3xl bg-[rgba(255,255,255,0.06)] backdrop-blur-xl shadow-2xl overflow-hidden transition-all duration-300 focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/20"
+                            >
+                                <Textarea
+                                    value={textInput}
+                                    onChange={(e) => setTextInput(e.target.value)}
+                                    maxLength={MAX_TEXT_LENGTH}
+                                    className="w-full bg-transparent text-white placeholder-gray-400 focus:outline-none px-5 sm:px-6 py-4 sm:py-5 resize-none text-base sm:text-lg min-h-[70px] sm:min-h-[85px]"
+                                    placeholder={
+                                        assistantState === 'listening'
+                                            ? "Listening to your voice..."
+                                            : ingredients.length > 0
+                                                ? "Ask what to cook with these, or describe your mood..."
+                                                : "Tell me how you're feeling..."
+                                    }
+                                    disabled={isLoading}
+                                    maxRows={6}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleChatSubmit(e);
+                                        }
+                                    }}
+                                />
+
+                                {/* Bottom Toolbar */}
+                                <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-t border-white/10 bg-white/[0.03]">
+                                    <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                        {/* Image Upload Button */}
+                                        <label
+                                            htmlFor="hero-image-upload"
+                                            className="p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer transition-colors"
+                                            title="Scan Fridge / Upload Image"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                                <polyline points="21 15 16 10 5 21" />
+                                            </svg>
+                                        </label>
+                                        <input
+                                            ref={fileInputRef}
+                                            id="hero-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={handleImageUpload}
+                                            className="hidden"
+                                        />
+
+                                        {/* Pantry Staples Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handleManualEntryClick}
+                                            className={`relative p-2 rounded-full transition-colors ${
+                                                ingredients.length > 0 ? 'text-purple-300 bg-purple-950/60' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                            title="Add Pantry Ingredients"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                                <circle cx="12" cy="7" r="4" />
+                                            </svg>
+                                            {ingredients.length > 0 && (
+                                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-purple-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+                                                    {ingredients.length}
+                                                </span>
+                                            )}
+                                        </button>
+
+                                        {/* Microphone Voice Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handleVoiceClick}
+                                            className={`p-2 rounded-full transition-colors ${
+                                                assistantState === 'listening'
+                                                    ? 'bg-rose-600 text-white animate-pulse'
+                                                    : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                            title="Voice Input"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                                <line x1="12" y1="19" x2="12" y2="23" />
+                                                <line x1="8" y1="23" x2="16" y2="23" />
+                                            </svg>
+                                        </button>
+
+                                        {/* Veg / Non-Veg Dropdown in Chat Layout */}
+                                        <DietaryDropdown
+                                            dietaryPreference={dietaryPreference}
+                                            onSelect={setDietaryPreference}
+                                        />
+                                    </div>
+
+                                    {/* Send Button */}
                                     <button
-                                        type="button"
-                                        onClick={() => setIngredients(prev => prev.filter((_, i) => i !== idx))}
-                                        className="text-purple-400 hover:text-white ml-0.5 font-bold leading-none p-0.5"
-                                        title={`Remove ${ing}`}
+                                        type="submit"
+                                        disabled={isLoading || (!textInput.trim() && ingredients.length === 0)}
+                                        className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-purple-600/30 hover:shadow-purple-600/50 transition-all transform active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        title="Send message"
                                     >
-                                        &times;
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="22" y1="2" x2="11" y2="13" />
+                                            <polygon points="22 2 15 22 11 13 2 9" />
+                                        </svg>
                                     </button>
-                                </span>
-                            ))}
+                                </div>
+                            </form>
+
+                            {/* Prompt Inspiration Chips */}
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center pt-2">
+                                {SUGGESTED_PROMPTS.map((p, idx) => (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => handleChatSubmit(null, p.text)}
+                                        className="text-[11px] sm:text-xs px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-gray-300 hover:text-white transition-all backdrop-blur-sm"
+                                    >
+                                        <span>{p.text}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+
+                        {/* Footer in Hero State */}
+                        <div className="w-full pt-4">
+                            <footer className="w-full text-center text-gray-500 text-[11px] sm:text-xs tracking-wider">
+                                <div className="flex justify-center flex-col sm:flex-row items-center gap-1.5">
+                                    <span>© 2026 MoodBite.Ai Project.</span>
+                                    <span className="hidden sm:inline">•</span>
+                                    <a
+                                        href="https://github.com/Saksham-st12/MoodBite-Version-1.0"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:text-gray-300 transition-colors underline"
+                                    >
+                                        github.com/Saksham-st12
+                                    </a>
+                                </div>
+                            </footer>
                         </div>
                     </div>
-                )}
-
-                {/* Photo Previews */}
-                <AnimatePresence>
-                    {filePreviews.length > 0 && (
-                        <motion.div 
-                            className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-2"
-                            initial={{ opacity: 0, height: 0 }} 
-                            animate={{ opacity: 1, height: 'auto' }} 
-                            exit={{ opacity: 0, height: 0 }}
-                        >
-                            {filePreviews.map(p => (
-                                <motion.div key={p.id} className="relative aspect-square rounded-lg overflow-hidden group border border-gray-700/60" layout>
-                                    <img src={p.previewUrl} className="w-full h-full object-cover" alt="Ingredient preview" />
-                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                        {p.status === 'uploading' && <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin"></div>}
-                                        {p.status === 'success' && <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
-                                        {p.status === 'error' && (
-                                            <div className="text-center p-1" title={p.errorMessage || 'Failed'}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                                                <span className="text-[9px] text-red-300 block truncate max-w-[60px]">{p.errorMessage || 'Failed'}</span>
+                ) : (
+                    // Conversation Feed Layout (When messages exist)
+                    <div className="w-full max-w-2xl sm:max-w-3xl mx-auto space-y-5 pb-36">
+                        {messages.map((msg, index) => (
+                            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                {msg.role === 'user' ? (
+                                    <div className="max-w-lg p-3.5 sm:p-4 rounded-3xl bg-indigo-600/90 text-white shadow-xl backdrop-blur-md">
+                                        <p className="text-xs sm:text-sm leading-relaxed">{msg.content}</p>
+                                        {msg.ingredients && msg.ingredients.length > 0 && (
+                                            <div className="mt-2 pt-2 border-t border-indigo-400/40 flex flex-wrap gap-1 items-center">
+                                                <span className="text-[10px] text-indigo-200 font-semibold">Ingredients:</span>
+                                                {msg.ingredients.map((ing, i) => (
+                                                    <span key={i} className="text-[10px] bg-indigo-800/90 px-2 py-0.5 rounded-full border border-indigo-400/30 capitalize">
+                                                        {ing}
+                                                    </span>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
-                                    {p.status === 'success' && p.ingredients.length > 0 && (
-                                        <div className="absolute bottom-0 left-0 w-full p-0.5 bg-black/80 text-center">
-                                            <p className="text-white text-[9px] truncate">{p.ingredients.join(', ')}</p>
+                                ) : msg.content?.type === 'recipe_detail' ? (
+                                    <RecipeDetailCard recipe={msg.content} />
+                                ) : msg.content?.type === 'error' ? (
+                                    <div className="bg-rose-950/80 border border-rose-500/50 rounded-2xl p-4 max-w-lg text-rose-200 text-xs shadow-xl space-y-1.5 backdrop-blur-md">
+                                        <div className="flex items-center gap-2 font-bold text-rose-300 text-sm">
+                                            <span>⚠️</span>
+                                            <span>{msg.content.title || "Request Notice"}</span>
                                         </div>
-                                    )}
-                                    <button 
-                                        type="button"
-                                        onClick={() => removePreview(p.id)} 
-                                        className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black rounded-full w-4 h-4 flex items-center justify-center text-white text-xs font-bold leading-none"
-                                        title="Remove photo"
-                                    >
-                                        &times;
-                                    </button>
-                                </motion.div>
-                            ))}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                                        <p className="leading-relaxed">{msg.content.reason || msg.content.message}</p>
+                                    </div>
+                                ) : msg.content?.choices && msg.content?.choices.length > 0 ? (
+                                    <RecipeChoicesCard response={msg.content} onSelectRecipe={handleSelectRecipe} />
+                                ) : (
+                                    <BotResponseCard response={msg.content} />
+                                )}
+                            </div>
+                        ))}
+                        
+                        {isLoading && (
+                            <div className="flex justify-start">
+                                <TypingIndicator />
+                            </div>
+                        )}
+                        
+                        <div ref={chatEndRef} />
+                    </div>
+                )}
+            </main>
 
-                <form onSubmit={handleChatSubmit} className="bg-gray-800/80 backdrop-blur-sm border border-gray-600/50 rounded-full p-2 flex items-center gap-2 shadow-lg">
-                    <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
-                       <label htmlFor="image-upload-input" className="p-2 rounded-full hover:bg-gray-700 cursor-pointer transition-colors" title="Upload ingredient images">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a3 3 0 006 0V7a1 1 0 112 0v4a5 5 0 01-10 0V7a3 3 0 013-3z" clipRule="evenodd" /></svg>
-                        </label>
-                        <input 
-                            ref={fileInputRef}
-                            id="image-upload-input" 
-                            type="file" 
-                            accept="image/*" 
-                            multiple 
-                            onChange={handleImageUpload} 
-                            className="hidden" 
-                        />
-                        <button 
-                            type="button" 
-                            onClick={handleManualEntryClick} 
-                            className={`relative p-2 rounded-full cursor-pointer transition-all ${
-                                ingredients.length > 0 
-                                    ? 'bg-purple-900/70 text-purple-300 ring-1 ring-purple-500' 
-                                    : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                            }`}
-                            title="Write or add ingredients manually"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                            </svg>
-                            {ingredients.length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-purple-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow">
-                                    {ingredients.length}
+            {/* Bottom Anchored Input Bar (When in active chat mode) */}
+            {hasMessages && (
+                <footer className="fixed bottom-0 left-0 w-full p-3 sm:p-4 bg-gradient-to-t from-black via-black/90 to-transparent z-30">
+                    <div className="w-full max-w-2xl sm:max-w-3xl mx-auto space-y-2">
+                        {/* Ingredients Tag Bar */}
+                        {ingredients.length > 0 && (
+                            <div className="p-2 bg-gray-950/90 border border-white/10 rounded-2xl backdrop-blur-xl flex items-center justify-between text-xs">
+                                <span className="text-purple-300 text-[11px] truncate">
+                                    🛒 Pantry ({ingredients.length}): {ingredients.slice(0, 3).join(', ')}{ingredients.length > 3 ? '...' : ''}
                                 </span>
-                            )}
-                        </button>
-                    </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={handleManualEntryClick}
+                                        className="text-purple-400 hover:text-purple-300 underline text-[11px]"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIngredients([])}
+                                        className="text-gray-400 hover:text-rose-400 text-[11px]"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
-                    <Textarea
-                        value={textInput}
-                        onChange={(e) => setTextInput(e.target.value)}
-                        maxLength={500}
-                        className="flex-grow bg-transparent text-white placeholder-gray-400 focus:outline-none px-2 py-1.5 resize-none"
-                        placeholder={
-                            assistantState === 'listening' 
-                                ? "Listening..." 
-                                : ingredients.length > 0 
-                                    ? "Ask what to cook with these, or share your mood..." 
-                                    : "Tell me how you're feeling or add ingredients (max 500 chars)..."
-                        }
-                        disabled={isLoading}
-                        maxRows={5}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSubmit(e); } }}
-                    />
+                        <form
+                            onSubmit={handleChatSubmit}
+                            className="relative flex flex-col border border-white/20 rounded-3xl bg-[rgba(255,255,255,0.08)] backdrop-blur-xl shadow-2xl overflow-hidden focus-within:border-purple-500/50"
+                        >
+                            <Textarea
+                                value={textInput}
+                                onChange={(e) => setTextInput(e.target.value)}
+                                maxLength={MAX_TEXT_LENGTH}
+                                className="w-full bg-transparent text-white placeholder-gray-400 focus:outline-none px-4 sm:px-5 py-3 sm:py-3.5 resize-none text-sm sm:text-base min-h-[50px]"
+                                placeholder={
+                                    assistantState === 'listening'
+                                        ? "Listening..."
+                                        : "Reply with your mood or ingredients..."
+                                }
+                                disabled={isLoading}
+                                maxRows={4}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleChatSubmit(e);
+                                    }
+                                }}
+                            />
 
-                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                        <button 
-                            type="button" 
-                            onClick={handleVoiceClick} 
-                            className={`p-2 rounded-full hover:bg-gray-700 transition-colors ${assistantState === 'listening' ? 'bg-red-600 hover:bg-red-700 animate-pulse' : ''}`} 
-                            title="Voice input"
-                        >
-                            {assistantState === 'listening' 
-                                ? <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                                : <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"/><path d="M5.5 11.5a5.5 5.5 0 0011 0h-1.5a4 4 0 01-8 0H5.5z"/><path d="M3 10a1 1 0 001 1v1a7 7 0 0014 0v-1a1 1 0 10-2 0v1a5 5 0 01-10 0v-1a1 1 0 00-1-1z"/></svg>
-                            }
-                        </button>
-                        <button 
-                            type="submit" 
-                            className="flex-shrink-0 px-3 sm:px-4 py-2 text-sm font-semibold rounded-full bg-purple-600 text-white hover:bg-purple-700 transition-colors"
-                        >
-                            <span className="hidden sm:inline">Send</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:hidden" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.428A1 1 0 009.5 16.571V11.5a1 1 0 011-1h.043c.248 0 .45.223.497.472l.5 2.5a1 1 0 001.953.054l1.328-5.313a1 1 0 00-.5-1.157l-7-3.5z" /></svg>
-                        </button>
+                            <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-t border-white/10 bg-white/[0.02]">
+                                <div className="flex items-center gap-1 sm:gap-2">
+                                    <label
+                                        htmlFor="chat-image-upload"
+                                        className="p-1.5 sm:p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white cursor-pointer transition-colors"
+                                        title="Scan Fridge"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                            <circle cx="8.5" cy="8.5" r="1.5" />
+                                            <polyline points="21 15 16 10 5 21" />
+                                        </svg>
+                                    </label>
+                                    <input
+                                        id="chat-image-upload"
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handleImageUpload}
+                                        className="hidden"
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={handleManualEntryClick}
+                                        className="p-1.5 sm:p-2 rounded-full hover:bg-white/10 text-gray-400 hover:text-white"
+                                        title="Pantry"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                            <circle cx="12" cy="7" r="4" />
+                                        </svg>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleVoiceClick}
+                                        className={`p-1.5 sm:p-2 rounded-full ${assistantState === 'listening' ? 'bg-rose-600 text-white animate-pulse' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+                                        title="Voice Input"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                        </svg>
+                                    </button>
+
+                                    {/* In-Chat Veg/Non-Veg Dropdown */}
+                                    <DietaryDropdown
+                                        dietaryPreference={dietaryPreference}
+                                        onSelect={setDietaryPreference}
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isLoading || (!textInput.trim() && ingredients.length === 0)}
+                                    className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md active:scale-95 disabled:opacity-40"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13" />
+                                        <polygon points="22 2 15 22 11 13 2 9" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
-            </footer>
+                </footer>
+            )}
 
             {/* Viewport-level Ingredient Input Overlay */}
             {inputMode === 'ingredients' && (

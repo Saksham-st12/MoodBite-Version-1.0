@@ -87,3 +87,34 @@ CREATE POLICY "Users can update their own preferences"
     TO authenticated
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
+
+-- ====================================================================
+-- Table 3: user_dish_feedback
+-- Records user like/dislike dish feedback for personalizing suggestions
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.user_dish_feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    dish_name TEXT NOT NULL,
+    feedback TEXT NOT NULL CHECK (feedback IN ('like', 'dislike')),
+    culinary_mood TEXT,
+    dietary_type TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_dish_feedback_user_id 
+    ON public.user_dish_feedback(user_id);
+
+ALTER TABLE public.user_dish_feedback ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own dish feedback"
+    ON public.user_dish_feedback
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own dish feedback"
+    ON public.user_dish_feedback
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
