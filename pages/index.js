@@ -470,7 +470,7 @@ export default function HomePage() {
                                 How are you <span className="font-serif italic text-white/90">feeling</span>?
                             </h2>
                             <p className="text-xs sm:text-sm text-gray-400 font-light max-w-md mx-auto">
-                                Share your mood or scan your fridge. We&apos;ll craft authentic Indian recipes to match.
+                                Share your mood or scan your ingredients. We&apos;ll craft authentic Indian recipes to match.
                             </p>
                         </motion.div>
 
@@ -723,41 +723,6 @@ export default function HomePage() {
                                             <span>{msg.content.title || "Request Notice"}</span>
                                         </div>
                                         <p className="leading-relaxed">{msg.content.reason || msg.content.message}</p>
-                                    </div>
-                                ) : (msg.content?.type === 'conversational' || msg.content?.isGreeting || msg.content?.isUnfamiliar) ? (
-                                    <div className="bg-white/[0.05] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-5 max-w-lg space-y-3.5 shadow-2xl backdrop-blur-xl">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-sm shadow-md">
-                                                🍲
-                                            </div>
-                                            <div>
-                                                <h4 className="text-xs sm:text-sm font-semibold text-white">MoodBite Culinary Assistant</h4>
-                                                <p className="text-[10px] text-gray-400">Mood & Ingredient Matcher</p>
-                                            </div>
-                                        </div>
-                                        <p className="text-xs sm:text-sm text-gray-200 leading-relaxed font-light">
-                                            {msg.content.message || msg.content.greeting}
-                                        </p>
-                                        {Array.isArray(msg.content.suggestedPrompts) && msg.content.suggestedPrompts.length > 0 && (
-                                            <div className="space-y-1.5 pt-2 border-t border-white/10">
-                                                <p className="text-[10px] uppercase font-bold tracking-wider text-purple-300">
-                                                    Try asking:
-                                                </p>
-                                                <div className="flex flex-col gap-1.5">
-                                                    {msg.content.suggestedPrompts.map((promptText, idx) => (
-                                                        <button
-                                                            key={idx}
-                                                            type="button"
-                                                            onClick={() => handleChatSubmit(null, promptText)}
-                                                            className="text-left text-xs px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/5 hover:border-purple-500/30 transition-all flex items-center justify-between group"
-                                                        >
-                                                            <span>&ldquo;{promptText}&rdquo;</span>
-                                                            <span className="text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 ) : msg.content?.choices && msg.content?.choices.length > 0 ? (
                                     <RecipeChoicesCard response={msg.content} onSelectRecipe={handleSelectRecipe} />

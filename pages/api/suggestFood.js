@@ -5,7 +5,7 @@ import { verifyDietaryCompliance, calculateIngredientMatch, detectNonVegKeywords
 import { getMood, mapGoEmotionToCulinaryMood, mentionsTiredness, CULINARY_MOOD_GUIDANCE, CULINARY_MOOD_CATEGORIES } from '../../lib/emotion';
 import { getAuthenticatedUser, saveRecommendationHistory } from '../../lib/supabaseServer';
 
-const PRIMARY_TIMEOUT_MS = 6000;
+const PRIMARY_TIMEOUT_MS = 8000;
 const FALLBACK_TIMEOUT_MS = 4000;
 
 // Safe JSON parser from LLM markdown code blocks
@@ -155,67 +155,7 @@ export default async function handler(req, res) {
             culinaryMood = mapGoEmotionToCulinaryMood(emotionResult.label);
         }
         const finalMood = culinaryMood;
-
-        // Intent Guard: Handle greetings, bot questions, or unfamiliar inputs without culinary/mood context
         const hasIngredients = Array.isArray(ingredients) && ingredients.length > 0;
-        const GREETING_REGEX = /^(hi|hey|hello|namaste|hola|yo|sup|good\s*(morning|afternoon|evening|day)|howdy|heyy+|hii+|greetings|what'?s\s*up)(\s+there|\s+moodbite|\s+bot|\s+ai|\s+chef)?[\s!.,?]*$/i;
-        const BOT_INFO_REGEX = /^(who\s+are\s+you|what\s+are\s+you|what\s+can\s+you\s+do|help|how\s+do\s+you\s+work|who\s+made\s+you|what\s+is\s+this)[\s!.,?]*$/i;
-        const MOOD_EXPRESSION_REGEX = /\b(feel|feeling|felt|mood|tired|exhausted|drained|happy|joy|joyful|cheerful|sad|gloomy|depressed|down|stressed|stress|anxious|anxiety|worried|angry|mad|furious|annoyed|calm|relaxed|peaceful|bored|lonely|excited|thrilled|craving|crave|celebrat|party)\b/i;
-        const CULINARY_INTENT_REGEX = /\b(food|eat|eating|cook|cooking|recipe|recipes|dish|dishes|dinner|lunch|breakfast|snack|snacks|meal|meals|hungry|starving|appetite|craving|crave|taste|yummy|delicious|spicy|sweet|sour|salty|crispy|hot|warm|cold|curry|gravy|dal|rice|roti|bread|sabzi|soup|chai|tea|dessert|drink|paneer|chicken|mutton|fish|egg|veggies?|vegetables?|masala|biryani|kitchen|fridge|pantry)\b/i;
-
-        if (!hasIngredients) {
-            const trimmedInput = userInput.trim();
-            if (GREETING_REGEX.test(trimmedInput)) {
-                return res.status(200).json({
-                    type: 'conversational',
-                    isGreeting: true,
-                    message: "Hey there! 👋 I'm MoodBite, your culinary mood assistant. How are you feeling today, or what ingredients do you have in your kitchen? Tell me about your mood or snap a photo of your fridge, and I'll curate authentic Indian recipes for you!",
-                    suggestedPrompts: [
-                        "Feeling exhausted after a long day at work",
-                        "Craving something warm, rich, and comforting",
-                        "Stressed about studies, want a light quick meal",
-                        "In a joyful celebratory mood!"
-                    ],
-                    culinaryMood: 'balanced',
-                    source: 'MoodBite Conversational Assistant'
-                });
-            }
-
-            if (BOT_INFO_REGEX.test(trimmedInput)) {
-                return res.status(200).json({
-                    type: 'conversational',
-                    message: "I am MoodBite AI! I connect your emotions and available kitchen pantry with culturally authentic Indian cooking wisdom. Share your mood or list ingredients to get personalized recipes with cooking steps.",
-                    suggestedPrompts: [
-                        "Feeling stressed, need something calming",
-                        "I have eggs, onions, and tomatoes",
-                        "Tired and need something restorative in 20 mins",
-                        "Happy and craving a celebratory dinner"
-                    ],
-                    culinaryMood: 'balanced',
-                    source: 'MoodBite Assistant'
-                });
-            }
-
-            const hasStrongEmotion = (moodSource === 'keyword') || (moodSource === 'classifier' && emotionResult.label !== 'neutral' && typeof emotionScore === 'number' && emotionScore >= 0.30);
-            const hasMoodKeywords = MOOD_EXPRESSION_REGEX.test(userInput);
-            const hasCulinaryKeywords = CULINARY_INTENT_REGEX.test(userInput);
-
-            if (!hasStrongEmotion && !hasMoodKeywords && !hasCulinaryKeywords) {
-                return res.status(200).json({
-                    type: 'conversational',
-                    isUnfamiliar: true,
-                    message: "I didn't quite catch how you're feeling or what you'd like to cook. Tell me about your mood (e.g. feeling exhausted, super joyful) or list your pantry ingredients, and I'll find delicious authentic recipes for you!",
-                    suggestedPrompts: [
-                        "Feeling tired, need something quick and easy",
-                        "Craving authentic spicy North Indian food",
-                        "I have potatoes, onions, and tomatoes",
-                        "Need a calming dinner for a rainy evening"
-                    ],
-                    culinaryMood: 'balanced',
-                    source: 'MoodBite Intent Filter'
-                });
-            }
-        }
 
         const styleHint = CULINARY_MOOD_GUIDANCE[culinaryMood] || 'wholesome everyday home-style meals';
         let emotionContext;
